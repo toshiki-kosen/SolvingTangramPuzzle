@@ -38,7 +38,7 @@ function Polygon(X::Array, Y::Array, T=Float64)
     )
 end
 
-# M (2 x N)行列
+# M (N*2)行列
 function Polygon(M::Matrix, T=Float64)
     return Polygon(M[1, :], M[2, :], T)
 end
@@ -59,172 +59,196 @@ function rotate!(P::Polygon{T}, θ::T) where T
 end
 
 # 図形を描画する
-function display(P::Polygon)
-    # 図形が閉じるように終点を追加
-    V = hcat(P.vertexes, P.vertexes[:, 1])
-    pl = plot(V[1, :], V[2, :], xlim = (-1, 3), ylim = (-1, 3), size=(500, 500))
-    scatter!(pl, [P.center[1]], [P.center[2]])
+function display(Polygons::Polygon...; center=false, vertex=false)
+    pl = plot(xlim = (-1, 3), ylim = (-1, 3), size=(400, 400))
+
+    for P in Polygons
+        # 図形が閉じるように終点を追加
+        V = hcat(P.vertexes, P.vertexes[:, 1])
+        plot!(pl, V[1, :], V[2, :])
+        if center != false
+            scatter!(pl, [P.center[1]], [P.center[2]], marker=center)
+        end
+        if vertex != false
+            scatter!(pl, V[1, :], V[2, :], marker=vertex)
+        end
+    end
     return pl
 end
 
-function line_intersect(A::Vector, B::Vector, C::Vector, D::Vector)
-    AB = B - A
-    AC = C - A
-    AD = D - A
-    CD = C - D
-    CA = -AC
-    CB = B - C
-    BD = D - B
+function ×(v::Vector{T}, u::Vector{T}) where T
+    return v[1] * u[2] - v[2] * u[1]
+end
 
-    s1 = AB[1] * AC[2] - AB[2] * AC[1] # AB×AC
-    t1 = AB[1] * AD[2] - AB[2] * AD[1] # AB×AD
+function segment_intersect(A::Vector, B::Vector, C::Vector, D::Vector)
+    s1 = (B - A) × (C - A) # AB×AC
+    t1 = (B - A) × (D - A)# AB×AD
 
-    s2 = CD[1] * CA[2] - CD[2] * CA[1] # CD×CA
-    t2 = CD[1] * CB[2] - CD[2] * CB[1] # CD×CB
+    s2 = (D - C) × (A - C) # CD×CA
+    t2 = (D - C) × (B - C) # CD×CB
 
-    p = [0.0, 0.0]
+    p = [-10.0, -10.0]
 
     if s1*t1 < 0 && s2*t2 < 0
-        λ = (CD[1] * AD[2] - CD[2] * AD[1])/(CD[1] * AB[2] - CD[2] * AB[1])
-        p = A + λ * AB
+        AB = B - A
+        DC = C - D
+        M = [AB[1] DC[1]
+             AB[2] DC[2]]
+        λ = inv(M) * (C - A)
+        p = A + λ[1] * AB
     end
     return (s1*t1 < 0 && s2*t2 < 0), p
 end
 
-function is_crossing_xray(P1::Polygon, P2::Polygon, i::Int64, j::Int64)
-    if P2.vertexes[2, i] < P1.vertexes[2, 1] < P2.vertexes[2, j]
-        return 1
-    elseif P2.vertexes[2, i] > P1.vertexes[2, 1] > P2.vertexes[2, j]
-        return 1
-    elseif P2.vertexes[2, i] == P1.vertexes[2, 1] && P1.vertexes[2, 1] < P2.vertexes[2, j]
-        return 1
-    elseif P2.vertexes[2, j] == P1.vertexes[2, 1] && P1.vertexes[2, 1] < P2.vertexes[2, i]
-        return 1
+function is_crossing_XrayFromP1FirstPoint(p1::Vector, P2::Polygon, i::Int64, j::Int64)
+    is_intersect, intersection = segment_intersect(p1, [2^13, p1[2]], P2.vertexes[:, i], P2.vertexes[:, j])
+    if P2.vertexes[:, i] == intersection || P2.vertexes[:, j] == intersection
+        if P2.vertexes[2, i] > P2.vertexes[2, j]
+            return true
+        end
     end
+
+    return is_intersect
 end
 
 # 図形と図形の共通部分
 function intersect(P1::Polygon, P2::Polygon)
     # 多角形の交点をpoly1, poly2 にそれぞれ追加
+
     # N^2 なので改善したい
-    # Intersections = [(P1における番号, P2における番号, 座標, 使用したかどうか), ...]
-    Intersections = Array{Tuple{Int64, Int64, Vector, Bool}}()
-    for i in 1:P1.n-1
-        for j in 1:P2.n-1
-            is_inter, intersection = line_intersect(P1.vertexes[i], P1.vertexes[i+1], P2.vertexes[j], P2.vertexes[j+1])
+    # Intersections = [(P1における手前の番号, 座標, 使用したかどうか), ...]
+    P1Intersections = Array{Tuple{Int64, Vector{typeof(P1.vertexes[1])}, Bool}, 1}()
+    for i in 1:P1.n
+        for j in 1:P2.n
+            if i < P1.n && j < P2.n
+                is_inter, intersection = segment_intersect(P1.vertexes[:, i], P1.vertexes[:, i+1], 
+                                                        P2.vertexes[:, j], P2.vertexes[:, j+1])
+            elseif i < P1.n && j == P2.n
+                is_inter, intersection = segment_intersect(P1.vertexes[:, i], P1.vertexes[:, i+1],
+                                                        P2.vertexes[:, end], P2.vertexes[:, 1])
+            elseif i == P1.n && j < P2.n
+                is_inter, intersection = segment_intersect(P1.vertexes[:, end], P1.vertexes[:, 1],
+                                                        P2.vertexes[:, j], P2.vertexes[:, j+1])
+            else
+                is_inter, intersection = segment_intersect(P1.vertexes[:, end], P1.vertexes[:, 1],
+                                                        P2.vertexes[:, end], P2.vertexes[:, 1])
+            end
             if is_inter
-                push!(Intersections, (i+length(Intersections)+1, j+length(Intersections)+1, intersection, false))
+                # TODO; P2 のインデックスが正しくないので要修正
+                push!(P1Intersections, (i + length(P1Intersections) + 1, intersection, false))
             end
         end
     end
 
-    num_inter = length(Intersections)
+    # Intersections = [(P2における手前の番号, 座標, 使用したかどうか), ...]
+    P2Intersections = Array{Tuple{Int64, Vector{typeof(P1.vertexes[1])}, Bool}, 1}()
+    for i in 1:P2.n
+        for j in 1:P1.n
+            if i < P2.n && j < P1.n
+                is_inter, intersection = segment_intersect(P2.vertexes[:, i], P2.vertexes[:, i+1], 
+                                                        P1.vertexes[:, j], P1.vertexes[:, j+1])
+            elseif i < P2.n && j == P1.n
+                is_inter, intersection = segment_intersect(P2.vertexes[:, i], P2.vertexes[:, i+1],
+                                                        P1.vertexes[:, end], P1.vertexes[:, 1])
+            elseif i == P2.n && j < P1.n
+                is_inter, intersection = segment_intersect(P2.vertexes[:, end], P2.vertexes[:, 1],
+                                                        P1.vertexes[:, j], P1.vertexes[:, j+1])
+            else
+                is_inter, intersection = segment_intersect(P2.vertexes[:, end], P2.vertexes[:, 1],
+                                                        P1.vertexes[:, end], P1.vertexes[:, 1])
+            end
+            if is_inter
+                push!(P2Intersections, (i + length(P2Intersections) + 1, intersection, false))
+            end
+        end
+    end
+    num_inter = length(P1Intersections)
 
     # 交点が追加された頂点の集合
-    npoly1 = P1.vertexes[1:Intersections[1][1] - 1]
-    npoly2 = P2.vertexes[1:Intersections[1][2] - 1]
+    nV1 = P1.vertexes[:, 1:P1Intersections[1][1] - 1]
+    nV2 = P2.vertexes[:, 1:P2Intersections[1][1] - 1]
 
     for i in 1:num_inter-1
-        index1 = Intersections[i][1] - 1
-        index2 = Intersections[i][2] - 1
-        hcat!(npoly1, Intersections[i][3])
-        hcat!(npoly2, Intersections[i][3])
+        # index1 = Intersections[i][1] - 1
+        # index2 = Intersections[i][2] - 1
+        nV1 = hcat(nV1, P1Intersections[i][2])
+        nV2 = hcat(nV2, P2Intersections[i][2])
 
-        hcat!(npoly1, P1.vertexes[Intersections[i][1]-i:Intersections[i+1][1] - i - 1])
-        hcat!(npoly2, P1.vertexes[Intersections[i][2]-i:Intersections[i+1][2] - i - 1])
+        nV1 = hcat(nV1, P1.vertexes[:, P1Intersections[i][1]-i+1:P1Intersections[i+1][1] - i - 1])
+        nV2 = hcat(nV2, P2.vertexes[:, P2Intersections[i][1]-i+1:P2Intersections[i+1][1] - i - 1])
     end
-    hcat!(npoly1, Intersections[end][3])
-    hcat!(npoly2, Intersections[end][3])
 
-    hcat!(npoly1, P1.vertexes[Intersections[end][1]-num_inter:end])
-    hcat!(npoly2, P1.vertexes[Intersections[end][2]-num_inter:end])
+    nV1 = hcat(nV1, P1Intersections[end][2])
+    nV2 = hcat(nV2, P2Intersections[end][2])
+
+    # nV1 = hcat(nV1, P1.vertexes[:, P1Intersections[end][1]-num_inter+1:end])
+    # nV2 = hcat(nV2, P2.vertexes[:, P2Intersections[end][1]-num_inter+1:end])
+
+    nV1 = P1Intersections[end][1]-num_inter < P1.n ? hcat(nV1, P1.vertexes[:, P1Intersections[end][1]-num_inter+1:end]) : nV1
+    nV2 = P2Intersections[end][1]-num_inter < P2.n ? hcat(nV2, P2.vertexes[:, P2Intersections[end][1]-num_inter+1:end]) : nV2
 
     # P1 の１つ目の頂点が P2 の内点か調べる
     isonEdge = false
     counter = 0
     for i in 1:P2.n-1
-        counter += is_crossing_xray(P1, P2, i, i+1)
+        counter += is_crossing_XrayFromP1FirstPoint(P1.vertexes[:, 1], P2, i, i+1)
     end
-    counter += is_crossing_xray(P1, P2, P2.n, 1)
-
-    isonEdge = counter % 2 == 1 ? true : false
+    counter += is_crossing_XrayFromP1FirstPoint(P1.vertexes[:, 1], P2, P2.n, 1)
 
     # poly1 の１つ目の頂点から巡回しながら交点が来たらそこから poly2 を巡回する
     # (共通部分を構成していたら poly1 と poly2 を行ったり来たりして、そうでなかったそうしない)
     # TODO; 共通部分が連結でない場合があるので、連結成分を個別に出力できるようにする
-    counter = 0
-    num_inter = length(Intersections)
-    onP1 = true
-    index = 1
+    IntersectionsPoly = num_inter > 0 ? Array{typeof(P1), 1}() : false
+    walker = (1, 1, counter % 2 == 1)
+ 
+    
+    return IntersectionsPoly
+end
+
+P1 = Polygon([0, 1, 2, 0], [1, 1, 2, 2])
+P2 = Polygon([0.5, 1.5, 1], [0, 0, 3])
+
+iP1, iP2 = intersect(P1, P2);
+
+# 面積計算はグリーンの定理で
 
 
-    polygons = Array{typeof(P1)}()
-    vertexes = Matrix{(typeof(P1.vertexes[1]))}()
-    while counter < num_inter
-        if isonEdge
-            if onP1
-                hcat!(vertexes, poly1.vertexes[index])
-            else
-                hcat!(vertexes, poly2.vertexes[index])
-            end
-            counter += 1
-        end
 
-        if onP1
-            index = index < length(poly1) ? index + 1 : 1
-        else
-            index = index < length(poly2) ? index + 1 : 1
-        end
+function test_segment_intersection(; xlim=(-5, 5), ylim=(-5, 5))
+    X = (xlim[2] - xlim[1]) * rand(Float64, 4) .+ xlim[1]
+    Y = (ylim[2] - ylim[1]) * rand(Float64, 4) .+ ylim[1]
+    XY = hcat(X, Y)
+    is_intersect, p = segment_intersect(XY[1, :], XY[2, :], XY[3, :], XY[4, :])
 
-        is_polygon_complete = false
-        if onP1
-            for i in 1:length(vertexes[1, :])
-                if poly1[index] == vertexes[:, i]
-                    push!(polygons, Polygon(vertexes))
-                    empty!(vertexes)
-                    is_polygon_complete = true
-                end
-            end
-        else
-            for i in 1:length(vertexes[1, :])
-                if poly2[index] == vertexes[:, i]
-                    push!(polygons, Polygon(vertexes))
-                    empty!(vertexes)
-                    is_polygon_complete = true
-                end
-            end
-        end
-
-        # スタート地点を変える
-        if is_polygon_complete; continue end
-
-        intersection_index = 0
-        onIntersection = false
-        if onP1
-            for i in Intersections
-                if i[1] == index
-                    onIntersection = true
-                    intersection_index = i[2]
-                    break
-                end
-            end
-        else
-            for i in Intersections
-                if i[2] == index
-                    onIntersection = true
-                    intersection_index = i[1]
-                    break
-                end
-            end
-        end
-
-        if isonEdge
-            onP1 = !onP1
-            index = intersection_index == 0 ? index : intersection_index
-        else
-            isonEdge= true
-        end
+    plt = plot(X[1:2], Y[1:2], m = :circle, xlim = xlim, ylim=ylim, size=(300, 300))
+    plot!(plt, X[3:4], Y[3:4], m = :circle)
+    if is_intersect
+        scatter!(plt, [p[1]], [p[2]])
     end
+    return plt
+end
 
-    return polygons
+function test_is_innerPoint(; xlim=(-5, 5), ylim=(-5, 5))
+    n = rand(3:20)
+    X = (xlim[2] - xlim[1]) * rand(Float64, n) .+ xlim[1]
+    Y = (ylim[2] - ylim[1]) * rand(Float64, n) .+ ylim[1]
+    Poly = Polygon(X, Y)
+
+    p = [0.0, 0.0]
+    p[1] = (xlim[2] - xlim[1]) * rand(Float64) .+ xlim[1]
+    p[2] = (ylim[2] - ylim[1]) * rand(Float64) .+ ylim[1]
+
+    counter = 0
+    for i in 1:n-1
+        counter += is_crossing_XrayFromP1FirstPoint(p, Poly, i, i+1)
+    end
+    counter += is_crossing_XrayFromP1FirstPoint(p, Poly, n, 1)
+
+    println(counter)
+
+    push!(X, X[1]); push!(Y, Y[1])
+    plt = plot(X, Y, m = :circle, xlim = xlim, ylim=ylim, size=(500, 500))
+    scatter!(plt, [p[1]], [p[2]])
+
+    return plt
 end
