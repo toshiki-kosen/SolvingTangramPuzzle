@@ -111,12 +111,22 @@ function is_crossing_XrayFromP1FirstPoint(p1::Vector, P2::Polygon, i::Int64, j::
     return is_intersect
 end
 
+function next_walker(walker::Tuple{Int64, Int64, Bool}, P1::Polygon, P2::Polygon)
+    if walker[1] == 1
+        ind = walker[2] + 1 <= P1.n ? walker[2] + 1 : 1
+    else
+        ind = walker[2] + 1 <= P2.n ? walker[2] + 1 : 1
+    end
+
+    return (walker[1], ind, walker[3])
+end
+
 # 図形と図形の共通部分
 function intersect(P1::Polygon, P2::Polygon)
     # 多角形の交点をpoly1, poly2 にそれぞれ追加
 
     # N^2 なので改善したい
-    # Intersections = [(P1における手前の番号, 座標, 使用したかどうか), ...]
+    # Intersections = [(divP1における番号, 座標, 使用したかどうか), ...]
     P1Intersections = Array{Tuple{Int64, Vector{typeof(P1.vertexes[1])}, Bool}, 1}()
     for i in 1:P1.n
         for j in 1:P2.n
@@ -140,7 +150,7 @@ function intersect(P1::Polygon, P2::Polygon)
         end
     end
 
-    # Intersections = [(P2における手前の番号, 座標, 使用したかどうか), ...]
+    # Intersections = [(divP2における番号, 座標, 使用したかどうか), ...]
     P2Intersections = Array{Tuple{Int64, Vector{typeof(P1.vertexes[1])}, Bool}, 1}()
     for i in 1:P2.n
         for j in 1:P1.n
@@ -163,6 +173,14 @@ function intersect(P1::Polygon, P2::Polygon)
         end
     end
     num_inter = length(P1Intersections)
+
+    divP1TodivP2 = Dict{Int64, Int64}()
+    divP2TodivP1 = Dict{Int64, Int64}()
+    for inter1 in P1Intersections
+        i2 = findfirst(x -> prod(x[2] .- 1e-2 .< inter1[2] .< x[2] .+ 1e-2), P2Intersections)
+        divP2TodivP1[i2] = inter1[1]
+        divP1TodivP2[inter1[1]] = i2
+    end
 
     # 交点が追加された頂点の集合
     nV1 = P1.vertexes[:, 1:P1Intersections[1][1] - 1]
@@ -188,7 +206,6 @@ function intersect(P1::Polygon, P2::Polygon)
     nV2 = P2Intersections[end][1]-num_inter < P2.n ? hcat(nV2, P2.vertexes[:, P2Intersections[end][1]-num_inter+1:end]) : nV2
 
     # P1 の１つ目の頂点が P2 の内点か調べる
-    isonEdge = false
     counter = 0
     for i in 1:P2.n-1
         counter += is_crossing_XrayFromP1FirstPoint(P1.vertexes[:, 1], P2, i, i+1)
@@ -199,20 +216,99 @@ function intersect(P1::Polygon, P2::Polygon)
     # (共通部分を構成していたら poly1 と poly2 を行ったり来たりして、そうでなかったそうしない)
     # TODO; 共通部分が連結でない場合があるので、連結成分を個別に出力できるようにする
     IntersectionsPoly = num_inter > 0 ? Array{typeof(P1), 1}() : false
-    walker = (1, 1, counter % 2 == 1)
+    V = Array{typeof(P1.vertexes[1]), 1}()
  
-    
+    divP1 = Polygon(nV1)
+    divP2 = Polygon(nV2)
+
+    markP1 = falses(divP1.n)
+    markP2 = falses(divP2.n)
+
+    now_initial = true
+    while (IntersectionsPoly) != false
+        global walker, initWalker
+
+        # 初期化
+        # while の外だとエラー出まくり侍なのでここでやる
+        if now_initial
+            walker = (1, 1, counter % 2 == 1)
+            initWalker = walker
+            now_initial = false
+        end
+
+        # ここからループ
+        # 現在いる点を記録する
+        if walker[3]
+            if isempty(V)
+                V = walker[1] == 1 ? divP1.vertexes[:, walker[2]] : divP2.vertexes[:, walker[2]]
+            else
+                V = walker[1] == 1 ? hcat(V, divP1.vertexes[:, walker[2]]) : hcat(V, divP2.vertexes[:, walker[2]])
+            end
+        end
+
+        # 次の頂点に移動
+        walker = next_walker(walker, divP1, divP2)
+
+        # 交点にいたら図形を変える
+        if walker[3]
+            if walker[1] == 1
+                if walker[2] ∈ P1Intersections[:][1]
+                    i1 = findfirst(x -> x == walker[2], P1Intersections[:][1])
+                    i2 = findfirst(x -> x == divP1TodivP2[walker[2]], P2Intersections[:][1])
+                    P1Intersections[i1][3] = true
+                    P2Intersections[i2][3] = true
+                    walker = (2, divP1TodivP2[walker[2]], true)
+                end
+            else
+                if walker[2] ∈ P2Intersections[:][1]
+                    i1 = findfirst(x -> x == divP2TodivP1[walker[2]], P1Intersections[:][1])
+                    i2 = findfirst(x -> x == walker[2], P2Intersections[:][1])
+                    P1Intersections[i1][3] = true
+                    P2Intersections[i2][3] = true
+                    walker = (2, divP2TodivP1[walker[2]], true)
+                end
+            end
+        else
+            if ((walker[1] == 1 && walker[2] ∈ P1Intersections[:][1]) || 
+                (walker[1] == 2 && walker[2] ∈ P2Intersections[:][1]))
+                walker = (walker[1], walker[2], true)
+            end
+        end
+        
+        # 現在地点と作成した図形の初点が一致するか？
+        # 一致するなら図形が完成している
+        if walker[1:2] == initWalker[1:2]
+            push!(IntersectionsPoly, Polygon(V))
+
+            # 未探索の交点はまだあるか？
+            # ないなら、未探索の共通部分はなくループを抜ける
+            is_uncomplete = P1Intersections[1][3]
+            for p1i in P1Intersections[2:end]
+                is_uncomplete *= p1i[3]
+            end
+            if is_uncomplete
+                ini = findfirst(!(P1Intersections[:][3]))
+                walker = (1, ini, true)
+                initWalker = walker
+            else
+                break
+            end
+        end
+    end
+
     return IntersectionsPoly
 end
 
 P1 = Polygon([0, 1, 2, 0], [1, 1, 2, 2])
 P2 = Polygon([0.5, 1.5, 1], [0, 0, 3])
 
-iP1, iP2 = intersect(P1, P2);
+iPs = intersect(P1, P2);
 
 # 面積計算はグリーンの定理で
+function area(Poly::Polygon)
 
-
+    return S
+end
 
 function test_segment_intersection(; xlim=(-5, 5), ylim=(-5, 5))
     X = (xlim[2] - xlim[1]) * rand(Float64, 4) .+ xlim[1]
