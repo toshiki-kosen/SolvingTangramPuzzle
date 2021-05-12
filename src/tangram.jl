@@ -60,7 +60,7 @@ end
 
 # 図形を描画する
 function display(Polygons::Polygon...; center=false, vertex=false)
-    pl = plot(xlim = (-1, 3), ylim = (-1, 3), size=(400, 400))
+    pl = plot(xlim = (-1, 6), ylim = (-1, 6), size=(400, 400))
 
     for P in Polygons
         # 図形が閉じるように終点を追加
@@ -129,6 +129,9 @@ function intersect(P1::Polygon, P2::Polygon)
     # Intersections = [(divP1における番号, 座標, 使用したかどうか), ...]
     P1Intersections = Array{Tuple{Int64, Vector{typeof(P1.vertexes[1])}, Bool}, 1}()
     for i in 1:P1.n
+        tmp_x = Array{typeof(P1.vertexes[1]), 1}()
+        tmp_y = Array{typeof(P1.vertexes[1]), 1}()
+
         for j in 1:P2.n
             if i < P1.n && j < P2.n
                 is_inter, intersection = segment_intersect(P1.vertexes[:, i], P1.vertexes[:, i+1], 
@@ -144,15 +147,23 @@ function intersect(P1::Polygon, P2::Polygon)
                                                         P2.vertexes[:, end], P2.vertexes[:, 1])
             end
             if is_inter
-                # TODO; P2 のインデックスが正しくないので要修正
-                push!(P1Intersections, (i + length(P1Intersections) + 1, intersection, false))
+                push!(tmp_x, intersection[1])
+                push!(tmp_y, intersection[2])
             end
+        end
+
+        r = sortperm((tmp_x .- P1.vertexes[1, i]).^2 + (tmp_y .- P1.vertexes[2, i]).^2)
+        for j in r
+            push!(P1Intersections, (i + length(P1Intersections) + 1, [tmp_x[j], tmp_y[j]], false))
         end
     end
 
     # Intersections = [(divP2における番号, 座標, 使用したかどうか), ...]
     P2Intersections = Array{Tuple{Int64, Vector{typeof(P1.vertexes[1])}, Bool}, 1}()
     for i in 1:P2.n
+        tmp_x = Array{typeof(P1.vertexes[1]), 1}()
+        tmp_y = Array{typeof(P1.vertexes[1]), 1}()
+
         for j in 1:P1.n
             if i < P2.n && j < P1.n
                 is_inter, intersection = segment_intersect(P2.vertexes[:, i], P2.vertexes[:, i+1], 
@@ -168,8 +179,14 @@ function intersect(P1::Polygon, P2::Polygon)
                                                         P1.vertexes[:, end], P1.vertexes[:, 1])
             end
             if is_inter
-                push!(P2Intersections, (i + length(P2Intersections) + 1, intersection, false))
+                push!(tmp_x, intersection[1])
+                push!(tmp_y, intersection[2])
             end
+        end
+
+        r = sortperm((tmp_x .- P2.vertexes[1, i]).^2 + (tmp_y .- P2.vertexes[2, i]).^2)
+        for j in r
+            push!(P2Intersections, (i + length(P2Intersections) + 1, [tmp_x[j], tmp_y[j]], false))
         end
     end
     num_inter = length(P1Intersections)
@@ -177,62 +194,80 @@ function intersect(P1::Polygon, P2::Polygon)
     divP1TodivP2 = Dict{Int64, Int64}()
     divP2TodivP1 = Dict{Int64, Int64}()
     for inter1 in P1Intersections
-        i2 = findfirst(x -> prod(x[2] .- 1e-2 .< inter1[2] .< x[2] .+ 1e-2), P2Intersections)
-        divP2TodivP1[i2] = inter1[1]
-        divP1TodivP2[inter1[1]] = i2
+        i2 = findfirst(x -> prod(abs.(inter1[2] .- x[2]) .<  .+ 1e-3), P2Intersections)
+        # println(findall(x -> prod(x[2] .- 1e-2 .< inter1[2] .< x[2] .+ 1e-2), P2Intersections))
+        #  i2 = findfirst(x -> x[2] == inter1[2], P2Intersections)
+        divP2TodivP1[P2Intersections[i2][1]] = inter1[1]
+        divP1TodivP2[inter1[1]] = P2Intersections[i2][1]
     end
 
     # 交点が追加された頂点の集合
-    nV1 = P1.vertexes[:, 1:P1Intersections[1][1] - 1]
-    nV2 = P2.vertexes[:, 1:P2Intersections[1][1] - 1]
+    nV1 = num_inter > 0 ? P1.vertexes[:, 1:P1Intersections[1][1] - 1] : P1.vertexes
+    nV2 = num_inter > 0 ? P2.vertexes[:, 1:P2Intersections[1][1] - 1] : P2.vertexes
 
-    for i in 1:num_inter-1
-        # index1 = Intersections[i][1] - 1
-        # index2 = Intersections[i][2] - 1
-        nV1 = hcat(nV1, P1Intersections[i][2])
-        nV2 = hcat(nV2, P2Intersections[i][2])
+    if num_inter > 0
+        for i in 1:num_inter-1
+            # index1 = Intersections[i][1] - 1
+            # index2 = Intersections[i][2] - 1
+            nV1 = hcat(nV1, P1Intersections[i][2])
+            nV2 = hcat(nV2, P2Intersections[i][2])
 
-        nV1 = hcat(nV1, P1.vertexes[:, P1Intersections[i][1]-i+1:P1Intersections[i+1][1] - i - 1])
-        nV2 = hcat(nV2, P2.vertexes[:, P2Intersections[i][1]-i+1:P2Intersections[i+1][1] - i - 1])
+            nV1 = hcat(nV1, P1.vertexes[:, P1Intersections[i][1]-i+1:P1Intersections[i+1][1] - i - 1])
+            nV2 = hcat(nV2, P2.vertexes[:, P2Intersections[i][1]-i+1:P2Intersections[i+1][1] - i - 1])
+        end
+
+        nV1 = hcat(nV1, P1Intersections[end][2])
+        nV2 = hcat(nV2, P2Intersections[end][2])
+
+        # nV1 = hcat(nV1, P1.vertexes[:, P1Intersections[end][1]-num_inter+1:end])
+        # nV2 = hcat(nV2, P2.vertexes[:, P2Intersections[end][1]-num_inter+1:end])
+
+        nV1 = P1Intersections[end][1]-num_inter < P1.n ? hcat(nV1, P1.vertexes[:, P1Intersections[end][1]-num_inter+1:end]) : nV1
+        nV2 = P2Intersections[end][1]-num_inter < P2.n ? hcat(nV2, P2.vertexes[:, P2Intersections[end][1]-num_inter+1:end]) : nV2
     end
-
-    nV1 = hcat(nV1, P1Intersections[end][2])
-    nV2 = hcat(nV2, P2Intersections[end][2])
-
-    # nV1 = hcat(nV1, P1.vertexes[:, P1Intersections[end][1]-num_inter+1:end])
-    # nV2 = hcat(nV2, P2.vertexes[:, P2Intersections[end][1]-num_inter+1:end])
-
-    nV1 = P1Intersections[end][1]-num_inter < P1.n ? hcat(nV1, P1.vertexes[:, P1Intersections[end][1]-num_inter+1:end]) : nV1
-    nV2 = P2Intersections[end][1]-num_inter < P2.n ? hcat(nV2, P2.vertexes[:, P2Intersections[end][1]-num_inter+1:end]) : nV2
 
     # P1 の１つ目の頂点が P2 の内点か調べる
-    counter = 0
+    counter1 = 0
     for i in 1:P2.n-1
-        counter += is_crossing_XrayFromP1FirstPoint(P1.vertexes[:, 1], P2, i, i+1)
+        counter1 += is_crossing_XrayFromP1FirstPoint(P1.vertexes[:, 1], P2, i, i+1)
     end
-    counter += is_crossing_XrayFromP1FirstPoint(P1.vertexes[:, 1], P2, P2.n, 1)
+    counter1 += is_crossing_XrayFromP1FirstPoint(P1.vertexes[:, 1], P2, P2.n, 1)
+
+    # P2 の１つ目の頂点が P1 の内点か調べる
+    counter2 = 0
+    for i in 1:P1.n-1
+        counter2 += is_crossing_XrayFromP1FirstPoint(P2.vertexes[:, 1], P1, i, i+1)
+    end
+    counter2 += is_crossing_XrayFromP1FirstPoint(P2.vertexes[:, 1], P1, P1.n, 1)
 
     # poly1 の１つ目の頂点から巡回しながら交点が来たらそこから poly2 を巡回する
     # (共通部分を構成していたら poly1 と poly2 を行ったり来たりして、そうでなかったそうしない)
     # TODO; 共通部分が連結でない場合があるので、連結成分を個別に出力できるようにする
     IntersectionsPoly = num_inter > 0 ? Array{typeof(P1), 1}() : false
+
+    # P1 が P2 に完全に含まれている場合
+    if (IntersectionsPoly) == false && counter1 % 2 == 1
+        return [P1]
+    # P2 が P1 に完全に含まれている場合
+    elseif (IntersectionsPoly) == false && counter2 % 2 == 1
+        return [P2]
+    end
+
     V = Array{typeof(P1.vertexes[1]), 1}()
  
     divP1 = Polygon(nV1)
     divP2 = Polygon(nV2)
 
-    markP1 = falses(divP1.n)
-    markP2 = falses(divP2.n)
-
     now_initial = true
+
+    viw = [10000.0, 10000.0]
     while (IntersectionsPoly) != false
-        global walker, initWalker
+        global walker, initWalker, viw
 
         # 初期化
         # while の外だとエラー出まくり侍なのでここでやる
         if now_initial
-            walker = (1, 1, counter % 2 == 1)
-            initWalker = walker
+            walker = (1, 1, counter1 % 2 == 1)
             now_initial = false
         end
 
@@ -251,49 +286,74 @@ function intersect(P1::Polygon, P2::Polygon)
 
         # 交点にいたら図形を変える
         if walker[3]
+            # P1 について
             if walker[1] == 1
-                if walker[2] ∈ P1Intersections[:][1]
-                    i1 = findfirst(x -> x == walker[2], P1Intersections[:][1])
-                    i2 = findfirst(x -> x == divP1TodivP2[walker[2]], P2Intersections[:][1])
-                    P1Intersections[i1][3] = true
-                    P2Intersections[i2][3] = true
-                    walker = (2, divP1TodivP2[walker[2]], true)
+                # ここがおかしい
+                on_intersection = false
+                for P1I in P1Intersections
+                    if walker[2] == P1I[1]
+                        on_intersection = true
+                        break
+                    end
                 end
+                if on_intersection
+                    i1 = findfirst(x -> x[1] == walker[2], P1Intersections)
+                    i2 = findfirst(x -> x[1] == divP1TodivP2[walker[2]], P2Intersections)
+                    P1Intersections[i1] = (P1Intersections[i1][1], P1Intersections[i1][2], true)
+                    P2Intersections[i2] = (P2Intersections[i2][1], P2Intersections[i2][2], true)
+                    walker = (2, P2Intersections[i2][1], true)
+                end
+            # P2 について
             else
-                if walker[2] ∈ P2Intersections[:][1]
-                    i1 = findfirst(x -> x == divP2TodivP1[walker[2]], P1Intersections[:][1])
-                    i2 = findfirst(x -> x == walker[2], P2Intersections[:][1])
-                    P1Intersections[i1][3] = true
-                    P2Intersections[i2][3] = true
-                    walker = (2, divP2TodivP1[walker[2]], true)
+                # ここもおかしい
+                on_intersection = false
+                for P2I in P2Intersections
+                    if walker[2] == P2I[1]
+                        on_intersection = true
+                        break
+                    end
                 end
-            end
+                if on_intersection
+                    i1 = findfirst(x -> x[1] == divP2TodivP1[walker[2]], P1Intersections)
+                    i2 = findfirst(x -> x[1] == walker[2], P2Intersections)
+                    P1Intersections[i1] = (P1Intersections[i1][1], P1Intersections[i1][2], true)
+                    P2Intersections[i2] = (P2Intersections[i2][1], P2Intersections[i2][2], true)
+                    walker = (1, P1Intersections[i1][1], true)
+                end
+            end 
         else
+            # ここもおかしくなりそう
             if ((walker[1] == 1 && walker[2] ∈ P1Intersections[:][1]) || 
                 (walker[1] == 2 && walker[2] ∈ P2Intersections[:][1]))
                 walker = (walker[1], walker[2], true)
+                initWalker = walker
+                viw =  walker[1] == 1 ? divP1.vertexes[:, walker[2]] : divP2.vertexes[:, walker[2]]
+                now_initial = true
             end
         end
-        
+
         # 現在地点と作成した図形の初点が一致するか？
         # 一致するなら図形が完成している
-        if walker[1:2] == initWalker[1:2]
+        vw = walker[1] == 1 ? divP1.vertexes[:, walker[2]] : divP2.vertexes[:, walker[2]]
+        if  walker[3] && (vw == viw) && !(now_initial)
             push!(IntersectionsPoly, Polygon(V))
 
             # 未探索の交点はまだあるか？
             # ないなら、未探索の共通部分はなくループを抜ける
-            is_uncomplete = P1Intersections[1][3]
+            is_complete = P1Intersections[1][3]
             for p1i in P1Intersections[2:end]
-                is_uncomplete *= p1i[3]
+                is_complete *= p1i[3]
             end
-            if is_uncomplete
-                ini = findfirst(!(P1Intersections[:][3]))
-                walker = (1, ini, true)
-                initWalker = walker
-            else
+            if is_complete
                 break
+            else
+                ini = findfirst(x -> x[3] == false, P1Intersections)
+                walker = (1, ini, true)
+                initWalker = [10000.0, 10000.0]
             end
         end
+        now_initial = false
+
     end
 
     return IntersectionsPoly
