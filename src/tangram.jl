@@ -47,6 +47,7 @@ end
 function move!(P::Polygon{T}, x::T, y::T) where T
     P.vertexes .+= [x, y]
     P.center += [x, y]
+    return nothing
 end
 
 # Polygon を θ だけ回転させる
@@ -56,6 +57,7 @@ function rotate!(P::Polygon{T}, θ::T) where T
     P.vertexes.-= P.center
     P.vertexes = R * P.vertexes
     P.vertexes .+= P.center
+    return nothing
 end
 
 # 図形を描画する
@@ -323,8 +325,24 @@ function intersect(P1::Polygon, P2::Polygon)
             end 
         else
             # ここもおかしくなりそう
-            if ((walker[1] == 1 && walker[2] ∈ P1Intersections[:][1]) || 
-                (walker[1] == 2 && walker[2] ∈ P2Intersections[:][1]))
+            on_intersection = false
+            if walker[1] == 1
+                for P1I in P1Intersections
+                    if walker[2] == P1I[1]
+                        on_intersection = true
+                        break
+                    end
+                end
+            elseif walker[1] ==2 
+                for P2I in P2Intersections
+                    if walker[2] == P2I[1]
+                        on_intersection = true
+                        break
+                    end
+                end
+            end
+
+            if on_intersection
                 walker = (walker[1], walker[2], true)
                 initWalker = walker
                 viw =  walker[1] == 1 ? divP1.vertexes[:, walker[2]] : divP2.vertexes[:, walker[2]]
@@ -347,9 +365,13 @@ function intersect(P1::Polygon, P2::Polygon)
             if is_complete
                 break
             else
-                ini = findfirst(x -> x[3] == false, P1Intersections)
-                walker = (1, ini, true)
-                initWalker = [10000.0, 10000.0]
+                ini1 = findfirst(x -> x[3] == false, P1Intersections)
+                # ini2 = findfirst(x -> x[1] == divP1TodivP2[ini1], P2Intersections)
+                # P1Intersections[ini1] = (P1Intersections[ini1][1], P1Intersections[ini1][2], false)
+                # P2Intersections[ini2] = (P2Intersections[ini2][1], P2Intersections[ini2][2], false)
+                walker = (1, P1Intersections[ini1][1]-1, false)
+                viw = [10000.0, 10000.0]
+                V = Array{typeof(P1.vertexes[1]), 1}()
             end
         end
         now_initial = false
@@ -359,10 +381,11 @@ function intersect(P1::Polygon, P2::Polygon)
     return IntersectionsPoly
 end
 
-P1 = Polygon([0, 1, 2, 0], [1, 1, 2, 2])
-P2 = Polygon([0.5, 1.5, 1], [0, 0, 3])
+# テスト用の図形
+P1 = Polygon([0, 1, 2, 1], [0, 5, 0, 6])
+P2 = Polygon([0, 1, 2], [3, 0, 3])
 
-iPs = intersect(P1, P2);
+iPs = intersect(P1, P2)
 
 # 面積計算はグリーンの定理で
 function area(Poly::Polygon)
