@@ -99,7 +99,7 @@ function segment_intersect(A::Vector, B::Vector, C::Vector, D::Vector)
         λ = inv(M) * (C - A)
         p = A + λ[1] * AB
     end
-    return (s1*t1 < 0 && s2*t2 < 0), p
+    return (s1*t1 <= 0 && s2*t2 <= 0), p
 end
 
 function is_crossing_XrayFromP1FirstPoint(p1::Vector, P2::Polygon, i::Int64, j::Int64)
@@ -382,12 +382,14 @@ function intersect(P1::Polygon, P2::Polygon)
 end
 
 # テスト用の図形
-# P1 = Polygon([0, 2, 1], [0, 0, 2])
-# P2 = Polygon([0, 1, 2], [2, 0, 2])
+P1 = Polygon([0, 1, 2], [0, 2, 0])
+P2 = Polygon([0, 1, 2], [0, 2, 0])
 
-# iPs = intersect(P1, P2)
+move!(P2, 0.50, 1.00)
 
-P1 = Polygon([1.5, 1.0, 0.5, 1.0], [1.0, 2.0, 1.0, 0.0])
+iPs = intersect(P1, P2)
+
+# P1 = Polygon([1.5, 1.0, 0.5, 1.0], [1.0, 2.0, 1.0, 0.0])
 
 # 面積計算はグリーンの定理で
 function area(Poly::Polygon)
