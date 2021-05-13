@@ -10,20 +10,20 @@ end
 
 # 多角形の重心
 function calc_center(X, Y)
-    A = 0
+    A = zero(X[1])
     for i in 1:length(X)-1
-        A += X[i]*Y[i+1] - X[i+1] * Y[i]
+        A += X[i] * Y[i+1] - X[i+1] * Y[i]
     end
-    A += X[1] * Y[end] - X[end] * Y[1]
+    A += X[end] * Y[1] - X[1] * Y[end]
     A /= 2
 
     Cx = Cy = 0
     for i in 1:length(X)-1
-        Cx += (X[i] + X[i+1]) * (X[i]*Y[i+1] - X[i+1]*Y[i])
-        Cy += (Y[i] + Y[i+1]) * (X[i]*Y[i+1]- X[i+1]*Y[i])
+        Cx += (X[i] + X[i+1]) * (X[i] * Y[i+1] - X[i+1] * Y[i])
+        Cy += (Y[i] + Y[i+1]) * (X[i] * Y[i+1] - X[i+1] * Y[i])
     end
-    Cx += (X[end] + X[1]) * (X[end]*Y[1] - X[1]*Y[end])
-    Cy += (Y[end] + Y[1]) * (X[end]*Y[1] - X[1]*Y[end])
+    Cx += (X[end] + X[1]) * (X[end] * Y[1] - X[1] * Y[end])
+    Cy += (Y[end] + Y[1]) * (X[end] * Y[1] - X[1] * Y[end])
 
     return [Cx/(6A), Cy/(6A)]
 end
@@ -382,15 +382,22 @@ function intersect(P1::Polygon, P2::Polygon)
 end
 
 # テスト用の図形
-P1 = Polygon([0, 1, 2, 1], [0, 5, 0, 6])
-P2 = Polygon([0, 1, 2], [3, 0, 3])
+# P1 = Polygon([0, 2, 1], [0, 0, 2])
+# P2 = Polygon([0, 1, 2], [2, 0, 2])
 
-iPs = intersect(P1, P2)
+# iPs = intersect(P1, P2)
+
+P1 = Polygon([1.5, 1.0, 0.5, 1.0], [1.0, 2.0, 1.0, 0.0])
 
 # 面積計算はグリーンの定理で
 function area(Poly::Polygon)
+    S = zero(Poly.vertexes[1])
+    for i in 1:Poly.n-1
+        S += Poly.vertexes[1, i] * Poly.vertexes[2, i+1] - Poly.vertexes[1, i+1] * Poly.vertexes[2, i]
+    end
+    S += Poly.vertexes[1, end] * Poly.vertexes[2, 1] - Poly.vertexes[1, 1] * Poly.vertexes[2, end]
 
-    return S
+    return abs(S)/2
 end
 
 function test_segment_intersection(; xlim=(-5, 5), ylim=(-5, 5))
