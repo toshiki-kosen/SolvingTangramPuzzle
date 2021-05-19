@@ -67,7 +67,7 @@ function display(Polygons::Polygon...; center=false, vertex=false)
     for P in Polygons
         # 図形が閉じるように終点を追加
         V = hcat(P.vertexes, P.vertexes[:, 1])
-        plot!(pl, V[1, :], V[2, :])
+        plot!(pl, V[1, :], V[2, :], fill=0)
         if center != false
             scatter!(pl, [P.center[1]], [P.center[2]], marker=center)
         end
@@ -82,6 +82,7 @@ function ×(v::Vector{T}, u::Vector{T}) where T
     return v[1] * u[2] - v[2] * u[1]
 end
 
+# 戻り値: (一点で交わっているか, 追加すべきか, 交点座標)
 function segment_intersect(A::Vector, B::Vector, C::Vector, D::Vector)
     s1 = (B - A) × (C - A) # AB×AC
     t1 = (B - A) × (D - A)# AB×AD
@@ -89,7 +90,7 @@ function segment_intersect(A::Vector, B::Vector, C::Vector, D::Vector)
     s2 = (D - C) × (A - C) # CD×CA
     t2 = (D - C) × (B - C) # CD×CB
 
-    p = [-10.0, -10.0]
+    p = [-1000.0, -1000.0]
 
     if s1*t1 < 0 && s2*t2 < 0
         AB = B - A
@@ -98,8 +99,30 @@ function segment_intersect(A::Vector, B::Vector, C::Vector, D::Vector)
              AB[2] DC[2]]
         λ = inv(M) * (C - A)
         p = A + λ[1] * AB
+        return true, true, p
+    elseif s1*t1 == 0 && s2*t2 < 0
+        if s1 == 0
+            p = C
+        else
+            p = D
+        end
+        return true, true, p
+    elseif s1*t1 < 0 && s2*t2 == 0
+        if s2 == 0
+            p = A
+        else
+            p = B
+        end
+        return true, false, p
+    # elseif s1*t1 == 0 && s2*t2 == 0
+    #     t = (D-A)[1]/(D-C)[1]
+    #     if 0 <= t <= 1
+    #         p = A
+    #     else
+    #         p = B
+    #     end
     end
-    return (s1*t1 <= 0 && s2*t2 <= 0), p
+    return false, false, p
 end
 
 function is_crossing_XrayFromP1FirstPoint(p1::Vector, P2::Polygon, i::Int64, j::Int64)
@@ -128,67 +151,85 @@ function intersect(P1::Polygon, P2::Polygon)
     # 多角形の交点をpoly1, poly2 にそれぞれ追加
 
     # N^2 なので改善したい
-    # Intersections = [(divP1における番号, 座標, 使用したかどうか), ...]
-    P1Intersections = Array{Tuple{Int64, Vector{typeof(P1.vertexes[1])}, Bool}, 1}()
+    # Intersections = [(divP1における番号, 座標, 使用したかどうか, 交点を追加するかどうか), ...]
+    P1Intersections = Array{Tuple{Int64, Vector{typeof(P1.vertexes[1])}, Bool, Bool}, 1}()
+    total_add = 0
     for i in 1:P1.n
         tmp_x = Array{typeof(P1.vertexes[1]), 1}()
         tmp_y = Array{typeof(P1.vertexes[1]), 1}()
+        tmp_a = Array{Bool, 1}()
 
         for j in 1:P2.n
             if i < P1.n && j < P2.n
-                is_inter, intersection = segment_intersect(P1.vertexes[:, i], P1.vertexes[:, i+1], 
+                is_inter, is_add, intersection = segment_intersect(P1.vertexes[:, i], P1.vertexes[:, i+1], 
                                                         P2.vertexes[:, j], P2.vertexes[:, j+1])
             elseif i < P1.n && j == P2.n
-                is_inter, intersection = segment_intersect(P1.vertexes[:, i], P1.vertexes[:, i+1],
+                is_inter, is_add, intersection = segment_intersect(P1.vertexes[:, i], P1.vertexes[:, i+1],
                                                         P2.vertexes[:, end], P2.vertexes[:, 1])
             elseif i == P1.n && j < P2.n
-                is_inter, intersection = segment_intersect(P1.vertexes[:, end], P1.vertexes[:, 1],
+                is_inter, is_add, intersection = segment_intersect(P1.vertexes[:, end], P1.vertexes[:, 1],
                                                         P2.vertexes[:, j], P2.vertexes[:, j+1])
             else
-                is_inter, intersection = segment_intersect(P1.vertexes[:, end], P1.vertexes[:, 1],
+                is_inter, is_add, intersection = segment_intersect(P1.vertexes[:, end], P1.vertexes[:, 1],
                                                         P2.vertexes[:, end], P2.vertexes[:, 1])
             end
             if is_inter
                 push!(tmp_x, intersection[1])
                 push!(tmp_y, intersection[2])
+                push!(tmp_a, is_add)
             end
         end
 
         r = sortperm((tmp_x .- P1.vertexes[1, i]).^2 + (tmp_y .- P1.vertexes[2, i]).^2)
-        for j in r
-            push!(P1Intersections, (i + length(P1Intersections) + 1, [tmp_x[j], tmp_y[j]], false))
+        for j in 1:length(r)
+            # ここがダメらしい
+            if j > 1 || tmp_a[r[j]]
+                push!(P1Intersections, (i + total_add + 1, [tmp_x[r[j]], tmp_y[r[j]]], false, tmp_a[r[j]]))
+                total_add += tmp_a[j]
+            else
+                push!(P1Intersections, (i + total_add, [tmp_x[r[j]], tmp_y[r[j]]], false, tmp_a[r[j]]))
+            end
         end
     end
 
-    # Intersections = [(divP2における番号, 座標, 使用したかどうか), ...]
-    P2Intersections = Array{Tuple{Int64, Vector{typeof(P1.vertexes[1])}, Bool}, 1}()
+    # Intersections = [(divP2における番号, 座標, 使用したかどうか, 交点を追加するかどうか), ...]
+    P2Intersections = Array{Tuple{Int64, Vector{typeof(P1.vertexes[1])}, Bool, Bool}, 1}()
+    total_add = 0
     for i in 1:P2.n
         tmp_x = Array{typeof(P1.vertexes[1]), 1}()
         tmp_y = Array{typeof(P1.vertexes[1]), 1}()
+        tmp_a = Array{Bool, 1}()
 
         for j in 1:P1.n
             if i < P2.n && j < P1.n
-                is_inter, intersection = segment_intersect(P2.vertexes[:, i], P2.vertexes[:, i+1], 
+                is_inter, is_add, intersection = segment_intersect(P2.vertexes[:, i], P2.vertexes[:, i+1], 
                                                         P1.vertexes[:, j], P1.vertexes[:, j+1])
             elseif i < P2.n && j == P1.n
-                is_inter, intersection = segment_intersect(P2.vertexes[:, i], P2.vertexes[:, i+1],
+                is_inter, is_add, intersection = segment_intersect(P2.vertexes[:, i], P2.vertexes[:, i+1],
                                                         P1.vertexes[:, end], P1.vertexes[:, 1])
             elseif i == P2.n && j < P1.n
-                is_inter, intersection = segment_intersect(P2.vertexes[:, end], P2.vertexes[:, 1],
+                is_inter, is_add, intersection = segment_intersect(P2.vertexes[:, end], P2.vertexes[:, 1],
                                                         P1.vertexes[:, j], P1.vertexes[:, j+1])
             else
-                is_inter, intersection = segment_intersect(P2.vertexes[:, end], P2.vertexes[:, 1],
+                is_inter, is_add, intersection = segment_intersect(P2.vertexes[:, end], P2.vertexes[:, 1],
                                                         P1.vertexes[:, end], P1.vertexes[:, 1])
             end
             if is_inter
                 push!(tmp_x, intersection[1])
                 push!(tmp_y, intersection[2])
+                push!(tmp_a, is_add)
             end
         end
 
         r = sortperm((tmp_x .- P2.vertexes[1, i]).^2 + (tmp_y .- P2.vertexes[2, i]).^2)
-        for j in r
-            push!(P2Intersections, (i + length(P2Intersections) + 1, [tmp_x[j], tmp_y[j]], false))
+        for j in 1:length(r)
+            # ここがダメらしい
+            if j > 1 || tmp_a[r[j]]
+                push!(P2Intersections, (i + total_add + 1, [tmp_x[r[j]], tmp_y[r[j]]], false, tmp_a[r[j]]))
+                total_add += tmp_a[r[j]]
+            else
+                push!(P2Intersections, (i + total_add, [tmp_x[r[j]], tmp_y[r[j]]], false, tmp_a[r[j]]))
+            end
         end
     end
     num_inter = length(P1Intersections)
@@ -208,24 +249,40 @@ function intersect(P1::Polygon, P2::Polygon)
     nV2 = num_inter > 0 ? P2.vertexes[:, 1:P2Intersections[1][1] - 1] : P2.vertexes
 
     if num_inter > 0
+        counter1 = 0
+        counter2 = 0
         for i in 1:num_inter-1
             # index1 = Intersections[i][1] - 1
             # index2 = Intersections[i][2] - 1
-            nV1 = hcat(nV1, P1Intersections[i][2])
-            nV2 = hcat(nV2, P2Intersections[i][2])
-
-            nV1 = hcat(nV1, P1.vertexes[:, P1Intersections[i][1]-i+1:P1Intersections[i+1][1] - i - 1])
-            nV2 = hcat(nV2, P2.vertexes[:, P2Intersections[i][1]-i+1:P2Intersections[i+1][1] - i - 1])
+            if P1Intersections[i][4]
+                counter1 += 1
+                nV1 = hcat(nV1, P1Intersections[i][2])
+                nV1 = hcat(nV1, P1.vertexes[:, P1Intersections[i][1] - counter1 + 1:P1Intersections[i+1][1] - counter1 - 1])
+            else
+                nV1 = hcat(nV1, P1Intersections[i][2])
+                nV1 = hcat(nV1, P1.vertexes[:, P1Intersections[i][1] - counter1 + 1:P1Intersections[i+1][1] - counter1 - 1])
+            end
+            if P2Intersections[i][4]
+                counter2 += 1
+                nV2 = hcat(nV2, P2Intersections[i][2])
+                nV2 = hcat(nV2, P2.vertexes[:, P2Intersections[i][1] - counter2 + 1:P2Intersections[i+1][1] - counter2 - 1])
+            else
+                nV2 = hcat(nV2, P2Intersections[i][2])
+                nV2 = hcat(nV2, P2.vertexes[:, P2Intersections[i][1] - counter2 + 1:P2Intersections[i+1][1] - counter2 - 1])
+            end
         end
 
         nV1 = hcat(nV1, P1Intersections[end][2])
         nV2 = hcat(nV2, P2Intersections[end][2])
 
+        counter1 += P1Intersections[end][4] ? 1 : 0
+        counter2 += P2Intersections[end][4] ? 1 : 0
+
         # nV1 = hcat(nV1, P1.vertexes[:, P1Intersections[end][1]-num_inter+1:end])
         # nV2 = hcat(nV2, P2.vertexes[:, P2Intersections[end][1]-num_inter+1:end])
 
-        nV1 = P1Intersections[end][1]-num_inter < P1.n ? hcat(nV1, P1.vertexes[:, P1Intersections[end][1]-num_inter+1:end]) : nV1
-        nV2 = P2Intersections[end][1]-num_inter < P2.n ? hcat(nV2, P2.vertexes[:, P2Intersections[end][1]-num_inter+1:end]) : nV2
+        nV1 = P1Intersections[end][1]-counter1 < P1.n ? hcat(nV1, P1.vertexes[:, P1Intersections[end][1]-counter1+1:end]) : nV1
+        nV2 = P2Intersections[end][1]-counter2 < P2.n ? hcat(nV2, P2.vertexes[:, P2Intersections[end][1]-counter2+1:end]) : nV2
     end
 
     # P1 の１つ目の頂点が P2 の内点か調べる
@@ -262,14 +319,21 @@ function intersect(P1::Polygon, P2::Polygon)
 
     now_initial = true
 
-    viw = [10000.0, 10000.0]
+    # viw = [10000.0, 10000.0]
     while (IntersectionsPoly) != false
-        global walker, initWalker, viw
+        global walker, initWalker# , viw
 
         # 初期化
         # while の外だとエラー出まくり侍なのでここでやる
         if now_initial
-            walker = (1, 1, counter1 % 2 == 1)
+            if P1Intersections[1][1] == 1
+                walker = (1, 1, true)
+            else
+                walker = (1, 1, counter1 % 2 == 1)
+            end
+            if walker[3]
+                initWalker = walker
+            end
             now_initial = false
         end
 
@@ -301,9 +365,9 @@ function intersect(P1::Polygon, P2::Polygon)
                 if on_intersection
                     i1 = findfirst(x -> x[1] == walker[2], P1Intersections)
                     i2 = findfirst(x -> x[1] == divP1TodivP2[walker[2]], P2Intersections)
-                    P1Intersections[i1] = (P1Intersections[i1][1], P1Intersections[i1][2], true)
-                    P2Intersections[i2] = (P2Intersections[i2][1], P2Intersections[i2][2], true)
-                    walker = (2, P2Intersections[i2][1], true)
+                    P1Intersections[i1] = (P1Intersections[i1][1], P1Intersections[i1][2], true, P1Intersections[i1][4])
+                    P2Intersections[i2] = (P2Intersections[i2][1], P2Intersections[i2][2], true, P2Intersections[i2][4])
+                    walker = P1Intersections[i1][4] ? (2, P2Intersections[i2][1], true) : walker
                 end
             # P2 について
             else
@@ -318,9 +382,9 @@ function intersect(P1::Polygon, P2::Polygon)
                 if on_intersection
                     i1 = findfirst(x -> x[1] == divP2TodivP1[walker[2]], P1Intersections)
                     i2 = findfirst(x -> x[1] == walker[2], P2Intersections)
-                    P1Intersections[i1] = (P1Intersections[i1][1], P1Intersections[i1][2], true)
-                    P2Intersections[i2] = (P2Intersections[i2][1], P2Intersections[i2][2], true)
-                    walker = (1, P1Intersections[i1][1], true)
+                    P1Intersections[i1] = (P1Intersections[i1][1], P1Intersections[i1][2], true, P1Intersections[i1][4])
+                    P2Intersections[i2] = (P2Intersections[i2][1], P2Intersections[i2][2], true, P2Intersections[i2][4])
+                    walker = P2Intersections[i2][4] ? (1, P1Intersections[i1][1], true) : walker
                 end
             end 
         else
@@ -329,14 +393,14 @@ function intersect(P1::Polygon, P2::Polygon)
             if walker[1] == 1
                 for P1I in P1Intersections
                     if walker[2] == P1I[1]
-                        on_intersection = true
+                        on_intersection = true # ここも P1I[4] にしないといけないか？
                         break
                     end
                 end
             elseif walker[1] ==2 
                 for P2I in P2Intersections
                     if walker[2] == P2I[1]
-                        on_intersection = true
+                        on_intersection = true # ここも P2I[4] にしないといけないか？
                         break
                     end
                 end
@@ -345,16 +409,23 @@ function intersect(P1::Polygon, P2::Polygon)
             if on_intersection
                 walker = (walker[1], walker[2], true)
                 initWalker = walker
-                viw =  walker[1] == 1 ? divP1.vertexes[:, walker[2]] : divP2.vertexes[:, walker[2]]
+                # viw =  walker[1] == 1 ? divP1.vertexes[:, walker[2]] : divP2.vertexes[:, walker[2]]
                 now_initial = true
             end
         end
 
         # 現在地点と作成した図形の初点が一致するか？
         # 一致するなら図形が完成している
-        vw = walker[1] == 1 ? divP1.vertexes[:, walker[2]] : divP2.vertexes[:, walker[2]]
-        if  walker[3] && (vw == viw) && !(now_initial)
-            push!(IntersectionsPoly, Polygon(V))
+        is_comeback = false
+        if walker[1] == 1 && walker[3]
+            is_comeback = walker[2] == initWalker[2]
+        elseif walker[1] == 2 && walker[3]
+            is_comeback = walker[2] == divP1TodivP2[initWalker[2]]
+        end
+        if  is_comeback && !(now_initial)
+            if size(V)[2] >= 3
+                push!(IntersectionsPoly, Polygon(V))
+            end
 
             # 未探索の交点はまだあるか？
             # ないなら、未探索の共通部分はなくループを抜ける
@@ -370,22 +441,23 @@ function intersect(P1::Polygon, P2::Polygon)
                 # P1Intersections[ini1] = (P1Intersections[ini1][1], P1Intersections[ini1][2], false)
                 # P2Intersections[ini2] = (P2Intersections[ini2][1], P2Intersections[ini2][2], false)
                 walker = (1, P1Intersections[ini1][1]-1, false)
-                viw = [10000.0, 10000.0]
+                # viw = [10000.0, 10000.0]
                 V = Array{typeof(P1.vertexes[1]), 1}()
             end
         end
         now_initial = false
-
     end
 
-    return IntersectionsPoly
+    return isempty(IntersectionsPoly) ? false : IntersectionsPoly
 end
 
 # テスト用の図形
-P1 = Polygon([0, 1, 2], [0, 2, 0])
-P2 = Polygon([0, 1, 2], [0, 2, 0])
+P1 = Polygon([0, 2, 1], [ 0, 0, 2])
+P2 = Polygon([0, 2, 1], [0, 0, 2])
 
-move!(P2, 0.50, 1.00)
+# P1 = Polygon( [])
+
+move!(P2, 0.5, 2.0)
 
 iPs = intersect(P1, P2)
 
