@@ -7,7 +7,7 @@ mutable struct Polygon{T}
     n::Int64
     center::Vector{T}
 end
-
+ 
 # 多角形の重心
 function calc_center(X, Y)
     A = zero(X[1])
@@ -114,9 +114,9 @@ function segment_intersect(A::Vector, B::Vector, C::Vector, D::Vector)
             p = B
         end
         return true, false, p
-    # elseif s1*t1 == 0 && s2*t2 == 0
-    #     t = (D-A)[1]/(D-C)[1]
-    #     if 0 <= t <= 1
+    elseif s1*t1 == 0 && s2*t2 == 0
+        t = (D-A)[1]/(D-C)[1]
+        if 0 <= t <= 1
     #         p = A
     #     else
     #         p = B
@@ -285,32 +285,10 @@ function intersect(P1::Polygon, P2::Polygon)
         nV2 = P2Intersections[end][1]-counter2 < P2.n ? hcat(nV2, P2.vertexes[:, P2Intersections[end][1]-counter2+1:end]) : nV2
     end
 
-    # P1 の１つ目の頂点が P2 の内点か調べる
-    counter1 = 0
-    for i in 1:P2.n-1
-        counter1 += is_crossing_XrayFromP1FirstPoint(P1.vertexes[:, 1], P2, i, i+1)
-    end
-    counter1 += is_crossing_XrayFromP1FirstPoint(P1.vertexes[:, 1], P2, P2.n, 1)
-
-    # P2 の１つ目の頂点が P1 の内点か調べる
-    counter2 = 0
-    for i in 1:P1.n-1
-        counter2 += is_crossing_XrayFromP1FirstPoint(P2.vertexes[:, 1], P1, i, i+1)
-    end
-    counter2 += is_crossing_XrayFromP1FirstPoint(P2.vertexes[:, 1], P1, P1.n, 1)
-
-    # poly1 の１つ目の頂点から巡回しながら交点が来たらそこから poly2 を巡回する
+    # poly1 の交点でない頂点から巡回し、交点が来たらそこから poly2 を巡回する
     # (共通部分を構成していたら poly1 と poly2 を行ったり来たりして、そうでなかったそうしない)
     # TODO; 共通部分が連結でない場合があるので、連結成分を個別に出力できるようにする
     IntersectionsPoly = length(P1Intersections) > 1 && length(P2Intersections) > 1 ? Array{typeof(P1), 1}() : false
-
-    # P1 が P2 に完全または面積0の領域を除いて含まれている場合
-    if (IntersectionsPoly) == false && counter1 % 2 == 1
-        return [P1]
-    # P2 が P1 に完全または面積0の領域を除いて含まれている場合
-    elseif (IntersectionsPoly) == false && counter2 % 2 == 1
-        return [P2]
-    end
 
     V = Array{typeof(P1.vertexes[1]), 1}()
  
@@ -326,10 +304,61 @@ function intersect(P1::Polygon, P2::Polygon)
         # 初期化
         # while の外だとエラー出まくり侍なのでここでやる
         if now_initial
+            # 開始位置を決める
+            start_v1 = 0
+            for i in 1:P1.n
+                if !(haskey(divP1TodivP2, i))
+                    start_v1 = i
+                    break
+                end
+            end
+
+            # P1の全頂点が交点ならば共通部分はP1そのもの
+            if start_v1 == 0
+                return [P1]
+            end
+
+            # P1 の１つ目の頂点が P2 の内点か調べる
+            counter1 = 0
+            for j in 1:P2.n-1
+                counter1 += is_crossing_XrayFromP1FirstPoint(P1.vertexes[:, start_v1], P2, j, j+1)
+            end
+            counter1 += is_crossing_XrayFromP1FirstPoint(P1.vertexes[:, start_v1], P2, P2.n, 1)
+
+
+            start_v2 = 0
+            # P2を調査する開始位置を決める
+            for i in 1:P2.n
+                if !(haskey(divP2TodivP1, i))
+                    start_v2 = i
+                    break
+                end
+            end
+
+            # P2の全頂点が交点ならば共通部分はP2そのもの
+            if start_v2 == 0
+                return [P2]
+            end
+
+            # P2 の１つ目の頂点が P1 の内点か調べる
+            counter2 = 0
+            for i in 1:P1.n-1
+                counter2 += is_crossing_XrayFromP1FirstPoint(P2.vertexes[:, start_v2], P1, i, i+1)
+            end
+            counter2 += is_crossing_XrayFromP1FirstPoint(P2.vertexes[:, start_v2], P1, P1.n, 1)
+
+            # P1 が P2 に完全または面積0の領域を除いて含まれている場合
+            if (IntersectionsPoly) == false && counter1 % 2 == 1
+                return [P1]
+            # P2 が P1 に完全または面積0の領域を除いて含まれている場合
+            elseif (IntersectionsPoly) == false && counter2 % 2 == 1
+                return [P2]
+            end
+
             if P1Intersections[1][1] == 1
-                walker = (1, 1, true)
+                walker = (1, start_v1, true)
             else
-                walker = (1, 1, counter1 % 2 == 1)
+                walker = (1, start_v1, counter1 % 2 == 1)
             end
             if walker[3]
                 initWalker = walker
