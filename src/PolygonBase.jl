@@ -100,30 +100,82 @@ function segment_intersect(A::Vector, B::Vector, C::Vector, D::Vector)
         λ = inv(M) * (C - A)
         p = A + λ[1] * AB
         return true, true, p
-    elseif s1*t1 == 0 && s2*t2 < 0
-        if s1 == 0
-            p = C
+    elseif s1*t1 == 0 || s2*t2 == 0
+        """ r = rand(1:4)
+        spread = 2e * rand(2) .- e
+        if r == 1
+            P1.vertexes[:, "Aのインデックス"] += spread
+            return segment_intersect(A + spread, B, C, D)
+        elseif r == 2
+            P1.vertexes[:, "Bのインデックス"] += spread
+            return segment_intersect(A, B + spread, C, D)
+        elseif r == 3
+            P2.vertexes[:, "Cのインデックス"] += spread
+            return segment_intersect(A, B, C + spread, D)
         else
-            p = D
-        end
+            P2.vertexes[:, "Dのインデックス"] += spread
+            return segment_intersect(A, B, C, D + spread)
+        end"""
+    end
+
+    return false, false, p
+end
+
+"""
+function segment_intersect(P1, P2, n, m)
+    A = P1.vertexex[:, n]; B = P1.vertexex[:, mod(n + 1, 1:P1.n)]
+    C = P2.vertexex[:, m]; D = P2.vertexex[:, mod(m + 1, 1:P2.n)]
+
+    s1 = (B - A) × (C - A) # AB×AC
+    t1 = (B - A) × (D - A)# AB×AD
+
+    s2 = (D - C) × (A - C) # CD×CA
+    t2 = (D - C) × (B - C) # CD×CB
+
+    p = [-1000.0, -1000.0]
+
+    if s1*t1 < 0 && s2*t2 < 0
+        AB = B - A
+        DC = C - D
+        M = [AB[1] DC[1]
+             AB[2] DC[2]]
+        λ = inv(M) * (C - A)
+        p = A + λ[1] * AB
         return true, true, p
-    elseif s1*t1 < 0 && s2*t2 == 0
-        if s2 == 0
-            p = A
-        else
-            p = B
+    elseif s1*t1 == 0 && s2*t2 < 0 # AB 上に C か D がある
+        # D がのっかる場合
+        if t1 == 0
+            return false, false, p
         end
-        return true, false, p
-    elseif s1*t1 == 0 && s2*t2 == 0
-        t = (D-A)[1]/(D-C)[1]
-        if 0 <= t <= 1
-    #         p = A
-    #     else
-    #         p = B
-    #     end
+        # Cが乗っかる場合
+        count = 1
+        E = P2.vertexes[:, mod(m - count, 1:P2.n)]
+
+        s3 = (C - E) × (B - A) # EC×AB
+        t3 = (D - C) × (B - A) # CD×AB
+
+        while t3 != 0
+
+        end
+
+        if s3 * t3 > 0
+            return true, true, C
+        else
+            return false, false, p
+        end
+
+    elseif s1*t1 < 0 && s2*t2 == 0
+        
+
+
+    elseif s1 == 0 ⊻ t1 == 0
+
+
+
     end
     return false, false, p
 end
+"""
 
 function is_crossing_XrayFromP1FirstPoint(p1::Vector, P2::Polygon, i::Int64, j::Int64)
     is_intersect, intersection = segment_intersect(p1, [2^13, p1[2]], P2.vertexes[:, i], P2.vertexes[:, j])
@@ -290,6 +342,10 @@ function intersect(P1::Polygon, P2::Polygon)
     # TODO; 共通部分が連結でない場合があるので、連結成分を個別に出力できるようにする
     IntersectionsPoly = length(P1Intersections) > 1 && length(P2Intersections) > 1 ? Array{typeof(P1), 1}() : false
 
+    if (length(P1Intersections) == 0 && length(P2Intersections) == 0)
+        return Array{Polygon{typeof(P1.vertexes[1])}, 1}()
+    end
+
     V = Array{typeof(P1.vertexes[1]), 1}()
  
     divP1 = Polygon(nV1)
@@ -298,7 +354,7 @@ function intersect(P1::Polygon, P2::Polygon)
     now_initial = true
 
     # viw = [10000.0, 10000.0]
-    while (IntersectionsPoly) != false
+    while true
         global walker, initWalker# , viw
 
         # 初期化
