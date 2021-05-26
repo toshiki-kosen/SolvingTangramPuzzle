@@ -79,13 +79,17 @@ function display(Polygons::MYPolygon...; center=false, vertex=false)
     return pl
 end
 
-function Polygon2LibGEOS(P::MYPolygon)
+function plot(P::Array{Polygon, 1}; center=false, vertex=false)
+    display(P..., center=center, vertex=vertex)
+end
+
+function MYPolygon2LibGEOS(P::MYPolygon)
     str = "POLYGON(("
     for i in 1:size(P.vertexes)[2]
         str *= string(P.vertexes[1, i])
         str *= " "
         str *= string(P.vertexes[2, i])
-        ","
+        str *= ","
     end
     str *= string(P.vertexes[1, 1])
     str *= " "
@@ -96,27 +100,15 @@ end
 
 # 図形と図形の共通部分
 function intersectionArea(P1::MYPolygon, P2::MYPolygon)
-    geP1 = Polygon2LibGEOS(P1)
-    geP2 = Polygon2LibGEOS(P2)
+    geP1 = MYPolygon2LibGEOS(P1)
+    geP2 = MYPolygon2LibGEOS(P2)
     gePi = LibGEOS.intersection(geP1, geP2)
     return LibGEOS.area(gePi)
 end
 
 function unionArea(P1::MYPolygon, P2::MYPolygon)
-    geP1 = Polygon2LibGEOS(P1)
-    geP2 = Polygon2LibGEOS(P2)
-    gePu = LibGEOS.uni(geP1, geP2)
+    geP1 = MYPolygon2LibGEOS(P1)
+    geP2 = MYPolygon2LibGEOS(P2)
+    gePu = LibGEOS.union(geP1, geP2)
     return LibGEOS.area(gePu)
 end
-
-# テスト用の図形
-P1 = MYPolygon([0, 2, 1], [0, 0, 2])
-P2 = MYPolygon([0, 2, 1], [0, 0, 2])
-
-# P1 = Polygon( [])
-
-move!(P2, 0.5, 1.0)
-
-iPs = intersect(P1, P2)
-
-# P1 = Polygon([1.5, 1.0, 0.5, 1.0], [1.0, 2.0, 1.0, 0.0])
