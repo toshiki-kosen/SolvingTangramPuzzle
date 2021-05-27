@@ -79,10 +79,6 @@ function display(Polygons::MYPolygon...; center=false, vertex=false)
     return pl
 end
 
-function plot(P::Array{Polygon, 1}; center=false, vertex=false)
-    display(P..., center=center, vertex=vertex)
-end
-
 function MYPolygon2LibGEOS(P::MYPolygon)
     str = "POLYGON(("
     for i in 1:size(P.vertexes)[2]
@@ -112,3 +108,5 @@ function unionArea(P1::MYPolygon, P2::MYPolygon)
     gePu = LibGEOS.union(geP1, geP2)
     return LibGEOS.area(gePu)
 end
+
+println("include has done.")
