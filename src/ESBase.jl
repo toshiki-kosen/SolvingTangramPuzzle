@@ -6,13 +6,10 @@ f(X) = 3sin(X[1]/3.0) + 2cos(X[2]/2.0)
 
 τ(n) = 1/√(10n)
 
-levy(X::Array) = sin(3π*X[1])^2 + (X[1] - 1)^2 * (1 + sin(3π*X[2])^2) + (X[2] - 1)^2 * (1 + sin(2π * X[2])^2)
-levy(x::Float64, y::Float64) = levy([x, y])
-
 mutable struct CMAES{T}
-    dim::UInt16
-    λ::UInt16
-    μ::UInt16
+    dim::Int
+    λ::Int
+    μ::Int
 
     centroid::Array{T, 1}
     c_m::T
@@ -112,35 +109,39 @@ function get_fitness(X::Matrix{Float64}, f::Function)
 end
 
 # CMAESパラメータの初期化
-function init(self::CMAES{T}, center::Array{T, 1}, σ::T, λ::UInt16) where T <: Real
+function init_CMAES(center::Array{T, 1}, σ::T, λ::Int) where T <: Real
     ## 初期化フェーズ
     # 次元数
-    self.dim = length(center)
+    dim = length(center)
 
     # 世代の総個体数 λ と エリート数 μ
-    self.λ = λ > 0 ? λ : round(UInt16, 4 + 3 * log(dim))
+    λ = λ > 0 ? λ : round(Int, 4 + 3 * log(dim))
     μ = λ÷2
 
     # 正規分布の中心と学習率
-    self.centroid = T.(center)
-    self.c_m = one(T)
+    centroid = T.(center)
+    c_m = one(T)
 
     # 順位重み係数
     weights = [log(0.5(λ+1)) - log(i) for i in 1:μ]
-    self.weights = T.(weights ./ sum(weights))
-    self.μ_eff = 1 / sum(weights.^2)
+    weights = T.(weights ./ sum(weights))
+    μ_eff = 1 / sum(weights.^2)
 
     # ステップサイズ
-    self.p_σ = zeros(T, dim)
-    self.c_σ = (μ_eff + 2) / (dim + μ_eff + 5)
-    self.d_σ = 1 + 2 * max(0, sqrt((μ_eff - 1)/(dim + 1)) - 1) + c_σ
+    p_σ = zeros(T, dim)
+    c_σ = (μ_eff + 2) / (dim + μ_eff + 5)
+    d_σ = 1 + 2 * max(0, sqrt((μ_eff - 1)/(dim + 1)) - 1) + c_σ
 
     # 共分散行列 進化パス p と rank-μ, rank-one更新の学習率c
-    self.C = Matrix{T}(I, self.dim, self.dim)
-    self.p_c = zeros(T, dim)
-    self.c_c = (4 + μ_eff / dim) / (dim + 4 + 2 * μ_eff/dim)
-    self.c_1 = 2 / ((dim + 1.3f0)^2 + μ_eff)
-    self.c_μ = min(1 - c_1, 2 * (μ_eff - 2 + 1/μ_eff) / ((dim+2)^2 + μ_eff))
+    C = Matrix{T}(I, dim, dim)
+    p_c = zeros(T, dim)
+    c_c = (4 + μ_eff / dim) / (dim + 4 + 2 * μ_eff/dim)
+    c_1 = 2 / ((dim + 1.3f0)^2 + μ_eff)
+    c_μ = min(1 - c_1, 2 * (μ_eff - 2 + 1/μ_eff) / ((dim+2)^2 + μ_eff))
+
+    ToReturn = CMAES(dim, λ, μ, centroid, c_m, weights, μ_eff, σ, p_σ, c_σ, d_σ, 
+                C, p_c, c_c, c_1, c_μ)
+    return ToReturn
 end
 
 # 個体の生成
@@ -158,13 +159,13 @@ function samplePopulation(self::CMAES{T}; rng=MersenneTwister(123)) where T <: R
     # y ~ N(0, C)
     Y = BD * Z
     # X ~ N(μ, σC)
-    X = centroid .+ σ * Y
+    X = self.centroid .+ self.σ * Y
 
     return X
 end
 
 # 個体および行列 C の更新
-function update(self::CMAES{T}, X, fitnesses, gen) where T <: Real
+function update!(self::CMAES{T}, X, fitnesses, gen) where T <: Real
     ### 更新フェーズ
     """ 正規分布パラメータの更新
     X : 個体群, shape == (λ, μ)
@@ -177,7 +178,7 @@ function update(self::CMAES{T}, X, fitnesses, gen) where T <: Real
     old_σ = self.σ
 
     # fitnesses が上位 μ までのインデックスを抽出
-    elite_indices = sortperm(fitnesses, rev = true)[1:μ]
+    elite_indices = sortperm(fitnesses)[1:self.μ]
 
     X_elite = X[:, elite_indices]
     Y_elite = (X_elite .- old_centroid) ./ old_σ
@@ -189,6 +190,9 @@ function update(self::CMAES{T}, X, fitnesses, gen) where T <: Real
     self.centroid = (1 - self.c_m) * old_centroid .+ self.c_m * X_w
 
     ## 2. Step-size control
+    Ei = eigen(self.C)
+    diagD = sqrt(Diagonal(Ei.values))
+    B = Ei.vectors
     inv_diagD = diagD^(-1)
 
     # Note. B*Z == C_ * Y
@@ -219,7 +223,7 @@ function update(self::CMAES{T}, X, fitnesses, gen) where T <: Real
 
     # 愚直な実装(スマートな実装はdeapのcma.pyを参照)
     wyy = zeros(T, (self.dim, self.dim))
-    for i in 1:μ
+    for i in 1:self.μ
         y_i = Y_elite[i]
         wyy .+= self.weights[i] * [y1 * y2 for y1 in y_i, y2 in y_i]
     end
