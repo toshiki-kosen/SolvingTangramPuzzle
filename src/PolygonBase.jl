@@ -44,11 +44,21 @@ function MYPolygon(M::Matrix, T=Float64)
     return MYPolygon(M[1, :], M[2, :], T)
 end
 
+function Base.copy(P::MYPolygon{T}) where T
+    return MYPolygon{T}(P.vertexes, P.n, P.center)
+end
+
 # Polygon を (x, y) ベクトルだけ動かす
 function move!(P::MYPolygon{T}, x::T, y::T) where T
     P.vertexes .+= [x, y]
     P.center += [x, y]
     return nothing
+end
+
+function move(P::MYPolygon{T}, x::T, y::T) where T
+    newP = deepcopy(P)
+    move!(newP, x, y)
+    return newP
 end
 
 # Polygon を θ だけ回転させる
@@ -59,6 +69,12 @@ function rotate!(P::MYPolygon{T}, θ::T) where T
     P.vertexes = R * P.vertexes
     P.vertexes .+= P.center
     return nothing
+end
+
+function rotate(P::MYPolygon{T}, θ::T) where T
+    newP = deepcopy(P)
+    rotate!(newP, θ)
+    return newP
 end
 
 # 図形を描画する
