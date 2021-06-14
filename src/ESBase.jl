@@ -152,7 +152,7 @@ function samplePopulation(self::CMAES{T}; rng=MersenneTwister(123)) where T <: R
 
     # C を固有値分解
     Ei = eigen(self.C)
-    diagD = sqrt(Diagonal(Ei.values))
+    diagD = sqrt(abs.(Diagonal(Ei.values)))
     B = Ei.vectors
     BD = B * diagD
 
@@ -191,7 +191,7 @@ function update!(self::CMAES{T}, X, fitnesses, gen) where T <: Real
 
     ## 2. Step-size control
     Ei = eigen(self.C)
-    diagD = sqrt(Diagonal(Ei.values))
+    diagD = sqrt(abs.(Diagonal(Ei.values)))
     B = Ei.vectors
     inv_diagD = diagD^(-1)
 
