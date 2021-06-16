@@ -1,7 +1,9 @@
-using Plots: length
+using LinearAlgebra: length
+using Plots: length, include
 using Base: Float64
 include("PolygonBase.jl")
 include("ESBase.jl")
+include("silhouette&pieces.jl")
 
 levy(X::Array) = sin(3π*X[1])^2 + (X[1] - 1)^2 * (1 + sin(3π*X[2])^2) + (X[2] - 1)^2 * (1 + sin(2π * X[2])^2)
 levy(x, y) = levy([x, y])
@@ -11,10 +13,6 @@ rastrigin(X::Array) = rastrigin(X[1], X[2])
 
 eggholder(x, y) = -(100*y + 47)*sin(sqrt(abs(50x + 100y + 47))) - 100x*sin(sqrt(abs(100x - 100y - 47)))
 eggholder(X::Array) = eggholder(X[1], X[2])
-
-silhouette = MYPolygon([0, 1, 1, 0], [0, 0, 1, 1])
-pieces = [MYPolygon([-1, 0, 0, -1], [0.5, 0.5, 1.5, 1.5])]
-rotate!(pieces[1], 0.5)
 
 # X[1つめのピースのx座標, 1つめのピースのy座標, １つめの回転角Θ, 2つめのx座標, ...]
 function loss_poly(X::Array)
@@ -35,12 +33,15 @@ function loss_poly(X::Array)
     return -100 * LibGEOS.area(tmp)/ LibGEOS.area(MYPolygon2LibGEOS(silhouette))
 end
 
-cmaes = init_CMAES([0.0, 0.0, 0.0], 2.0, 32)
+silhouette = house2
+pieces = [tri_m, square_s]
+
+# 初期化
+cmaes = init_CMAES(zeros(3 * length(pieces)), 2.8, 128)
+max_gen = 100
 
 fitnesses_ave = Array{Float64, 1}()
 fitnesses_max = Array{Float64, 1}()
-
-max_gen = 100
 
 anim = @animate for gen in 1:max_gen
     global fitnesses_ave, fitnesses_max
@@ -78,7 +79,10 @@ end
 
 gif(anim, "best_pieces.gif", fps=10)
 
-plot(1:max_gen, -fitnesses_ave)
-plot!(1:max_gen, -fitnesses_max, line=:dash)
-plot!(1:max_gen, 100 .+ zeros(max_gen), line=:dot)
+pl = plot(1:max_gen, -fitnesses_ave, lab="Average", xaxis="generation", yaxis="fitness [%]")
+plot!(pl, 1:max_gen, -fitnesses_max, line=:dash, lab="Maximum")
+plot!(pl, 1:max_gen, 100 .+ zeros(max_gen), line=:dot, lab=false)
+
+savefig(pl, "fitnesses.png")
+Base.display(pl)
 
