@@ -1,4 +1,3 @@
-using Base: UInt16, Real
 using LinearAlgebra: Matrix
 using Random, LinearAlgebra
 
@@ -193,7 +192,7 @@ function update!(self::CMAES{T}, X, fitnesses, gen) where T <: Real
     Ei = eigen(self.C)
     diagD = sqrt(abs.(Diagonal(Ei.values)))
     B = Ei.vectors
-    inv_diagD = diagD^(-1)
+    inv_diagD = inv(diagD)
 
     # Note. B*Z == C_ * Y
     C_ = B * inv_diagD * B'
@@ -204,6 +203,10 @@ function update!(self::CMAES{T}, X, fitnesses, gen) where T <: Real
 
     E_normal = sqrt(self.dim) * (1 - 1/(4*self.dim) + 1/(21 * self.dim ^ 2)) # 定数パラメータ
     self.σ = self.σ * exp((self.c_σ / self.d_σ) * (sqrt(sum(self.p_σ .^ 2))/E_normal - 1))
+
+    if isinf(self.σ)
+        self.σ = old_σ
+    end
 
     # 3. Covariance matrix adaptation (CMA)
     # Note. h_σ(heaviside 関数) はステップサイズ σ が大きいときに C の更新を中断させるのに使う

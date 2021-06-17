@@ -124,5 +124,3 @@ function unionArea(P1::MYPolygon, P2::MYPolygon)
     gePu = LibGEOS.union(geP1, geP2)
     return LibGEOS.area(gePu)
 end
-
-println("include has done.")
