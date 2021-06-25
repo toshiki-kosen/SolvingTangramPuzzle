@@ -79,9 +79,18 @@ end
 
 # 図形を描画する
 function display(Polygons::MYPolygon...; center=false, vertex=false)
-    pl = plot(xlim = (-1, 6), ylim = (-1, 6), size=(400, 400))
+    xmax = ymax = -floatmax(Float64)
+    xmin = ymin = floatmax(Float64)
+
+    pl = plot(size=(400, 400))
 
     for P in Polygons
+        # 表示範囲
+        xmax = maximum(P.vertexes[1, :]) > xmax ? maximum(P.vertexes[1, :]) : xmax
+        xmin = minimum(P.vertexes[1, :]) < xmin ? minimum(P.vertexes[1, :]) : xmin
+        ymax = maximum(P.vertexes[2, :]) > ymax ? maximum(P.vertexes[2, :]) : ymax
+        ymin = minimum(P.vertexes[2, :]) < ymin ? minimum(P.vertexes[2, :]) : ymin
+
         # 図形が閉じるように終点を追加
         V = hcat(P.vertexes, P.vertexes[:, 1])
         plot!(pl, V[1, :], V[2, :], fill=0)
@@ -92,6 +101,24 @@ function display(Polygons::MYPolygon...; center=false, vertex=false)
             scatter!(pl, V[1, :], V[2, :], marker=vertex)
         end
     end
+    if xmax - xmin > ymax - ymin
+        xmax += (xmax - xmin)/2
+        xmin -= (xmax - xmin)/2
+
+        ycent = (ymax + ymin)/2
+        ymax = ycent + (xmax - xmin)/2
+        ymin = ycent - (xmax - xmin)/2
+    else
+        ymax += (ymax - ymin)/2
+        ymin -= (ymax - ymin)/2
+
+        xcent = (xmax + xmin)/2
+        xmax = xcent + (ymax - ymin)/2
+        xmin = xcent - (ymax - ymin)/2
+    end
+
+    # plot!(pl, xlim=(xmin, xmax), ylim=(ymin, ymax))
+    plot!(pl, xlim=(-3, 3), ylim=(-3, 3))
     return pl
 end
 
