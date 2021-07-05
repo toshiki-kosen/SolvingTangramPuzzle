@@ -13,7 +13,7 @@ eggholder(x, y) = -(100*y + 47)*sin(sqrt(abs(50x + 100y + 47))) - 100x*sin(sqrt(
 eggholder(X::Array) = eggholder(X[1], X[2])
 
 # X[1つめのピースのx座標, 1つめのピースのy座標, １つめの回転角Θ, 2つめのx座標, ...]
-function loss_poly(X::Array; Ki::Float64 = 0.0, Kv::Float64 = 0.8)
+function loss_poly(X::Array;Ks::Float64 = 1.0, Ki::Float64 = 0.0, Kv::Float64 = 0.8)
     global pices, silhouette
 
     # silhouetteとpieceの共通部分の面積を求める
@@ -34,7 +34,7 @@ function loss_poly(X::Array; Ki::Float64 = 0.0, Kv::Float64 = 0.8)
     # 各2pieceの共通部分を求める
     inter = 1.0 - LibGEOS.area(unioned) / sum_pieces
 
-    # 頂点の誤差成分 
+    # 頂点の誤差成分
     Δv = 0.0
     for i in 1:silhouette.n
         Δmin = 100.0
@@ -45,17 +45,19 @@ function loss_poly(X::Array; Ki::Float64 = 0.0, Kv::Float64 = 0.8)
                 Δmin = min(Δmin, sum((silhouette.vertexes[:,i] - tmp_p.vertexes[:, j]).^2))
             end
         end
+        # Δv += tanh(2Δmin) / silhouette.n
         Δv = max(Δv, Δmin)
     end
 
-    return -100A + 100Kv * Δv + 100Ki * inter
+    return -100Ks * A + 100Kv * Δv + 100Ki * inter
 end
 
-silhouette = house2
-pieces = [square_s, tri_m]
+silhouette = rect_s
+pieces = [square_s, tri_s, tri_s]
 
 # 初期化
 cmaes = init_CMAES(zeros(3 * length(pieces)), 1.0, 0)
+rng = MersenneTwister(17)
 max_gen = 128
 
 fitnesses_ave = Array{Float64, 1}()
@@ -65,7 +67,7 @@ anim = @animate for gen in 1:max_gen
     global fitnesses_ave, fitnesses_max
     local X, fitnesses
     # 個体生成
-    X = samplePopulation(cmaes, rng=MersenneTwister())
+    X = samplePopulation(cmaes, rng=rng)
 
     # 回転角のパラメータを -π ~ π までに正規化
     for j in 1:size(X)[2]
@@ -75,7 +77,7 @@ anim = @animate for gen in 1:max_gen
     end
 
     # 評価値
-    loss(x) = loss_poly(x, Ki=0.1, Kv = 0.8)
+    loss(x) = loss_poly(x, Ks = 1.0, Ki=0.6, Kv = 0.8)
     fitnesses = get_fitness(X, loss)
 
     # 表示用
@@ -98,9 +100,8 @@ end
 
 gif(anim, "best_pieces.gif", fps=10)
 
-pl = plot(1:max_gen, -fitnesses_ave, lab="Average", xaxis="generation", yaxis="fitness")
-plot!(pl, 1:max_gen, -fitnesses_max, line=:dash, lab="Maximum")
+pl = plot(1:max_gen, -fitnesses_ave, lab="Average", xaxis="generation", yaxis="fitness", legend = :right)
+plot!(pl, 1:max_gen, -fitnesses_max, line=:dash, lab="Maximum", ylim=(minimum(-fitnesses_ave), 110), yticks = 100:-20:minimum(-fitnesses_ave))
 
 savefig(pl, "fitnesses.png")
 Base.display(pl)
-
