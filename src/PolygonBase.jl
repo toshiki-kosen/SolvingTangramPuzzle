@@ -118,7 +118,7 @@ function display(Polygons::MYPolygon...; center=false, vertex=false)
     end
 
     # plot!(pl, xlim=(xmin, xmax), ylim=(ymin, ymax))
-    plot!(pl, xlim=(-3, 3), ylim=(-3, 3))
+    plot!(pl, xlim=(-3, 3), ylim=(-3, 3), aspect_ratio =  1.0)
     return pl
 end
 
