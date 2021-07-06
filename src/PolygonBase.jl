@@ -61,7 +61,7 @@ function move(P::MYPolygon{T}, x::T, y::T) where T
     return newP
 end
 
-# Polygon を θ だけ回転させる
+# Polygon を θ だけ回転させる (重心中心)
 function rotate!(P::MYPolygon{T}, θ::T) where T
     R = [cos(θ) -sin(θ); sin(θ) cos(θ)]
     
@@ -70,10 +70,30 @@ function rotate!(P::MYPolygon{T}, θ::T) where T
     P.vertexes .+= P.center
     return nothing
 end
-
+# Polygon を θ だけ回転させる (重心中心)
 function rotate(P::MYPolygon{T}, θ::T) where T
     newP = deepcopy(P)
     rotate!(newP, θ)
+    return newP
+end
+
+# Polygon を θ だけ回転させる (頂点中心)
+function rotate!(P::MYPolygon{T}, θ::T, n::Int) where T
+    if n > P.n
+        throw(DomainError(n, "id of vertex must be less or equal than the number of vertexes of P"))
+    end
+    
+    R = [cos(θ) -sin(θ); sin(θ) cos(θ)]
+    
+    P.vertexes.-= P.vertexes[:, n]
+    P.vertexes = R * P.vertexes
+    P.vertexes .+= P.vertexes[:, n]
+    return nothing
+end
+# Polygon を θ だけ回転させる (頂点中心)
+function rotate(P::MYPolygon{T}, θ::T, n::Int) where T
+    newP = deepcopy(P)
+    rotate!(newP, θ, n)
     return newP
 end
 
