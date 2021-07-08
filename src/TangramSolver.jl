@@ -34,50 +34,81 @@ function loss_poly(X::Array;Ks::Float64 = 1.0, Ki::Float64 = 0.0, Kv::Float64 = 
     # 各2pieceの共通部分を求める
     inter = 1.0 - LibGEOS.area(unioned) / sum_pieces
 
-    # 頂点の誤差成分
+    """
+    # 頂点の誤差成分 (シルエットベース 緩い)
     Δv = 0.0
-    for i in 1:silhouette.n
+    for v_s in 1:silhouette.n
         Δmin = 100.0
-        for i in 1:length(pieces)
-            tmp_p = move(pieces[i], X[3i - 2], X[3i - 1])
-            rotate!(tmp_p, X[3i])
-            for j in 1:tmp_p.n
-                Δmin = min(Δmin, sum((silhouette.vertexes[:,i] - tmp_p.vertexes[:, j]).^2))
+        for j in 1:length(pieces)
+            tmp_p = move(pieces[j], X[3j - 2], X[3j - 1])
+            rotate!(tmp_p, X[3j])
+            for v_p in 1:tmp_p.n
+                Δmin = min(Δmin, sum((silhouette.vertexes[:,v_s] - tmp_p.vertexes[:, v_p]).^2))
             end
         end
-        # Δv += tanh(2Δmin) / silhouette.n
+        # Δv += 2tanh(2Δmin) / (π*silhouette.n)
         Δv = max(Δv, Δmin)
     end
+    """
+    # 頂点の誤差成分 (ピースベース 厳しい)
+    Δv = 0.0
+    for i in 1:length(pieces)
+        p = move(pieces[i], X[3i - 2], X[3i - 1])
+        rotate!(p, X[3i])
+        Δmax = 0.0
+        # 頂点ごとに誤差を見る
+        for v_p in 1:p.n
+            Δmin = 100.0
+            # シルエットについて見る
+            for v_s in 1:silhouette.n
+                Δmin = min(Δmin, sum((silhouette.vertexes[:,v_s] - p.vertexes[:, v_p]).^2))
+            end
+            # その他のピースについて見る
+            for j in 1:length(pieces)
+                if j == i continue end
+                q = move(pieces[j], X[3j - 2], X[3j - 1])
+                rotate!(p, X[3j])
+                for v_q in 1:q.n
+                    Δmin = min(Δmin, sum((q.vertexes[:,v_q] - p.vertexes[:, v_p]).^2))
+                end
+            end
+            Δmax = max(Δmax, Δmin)
+        end
+        # Δv += 2tanh(2Δmin) / (π*silhouette.n)
+        # Δv = max(Δv, Δmin)
+        Δv += Δmax
+    end
 
-    return -100Ks * A + 100Kv * Δv + 100Ki * inter
+    return -100Ks * A^1.5 + 100Kv * Δv + 100Ki * inter
 end
 
-silhouette = rect_s
-pieces = [square_s, tri_s, tri_s]
+silhouette = house2
+pieces = [square_s, tri_m]
 
 # 初期化
 cmaes = init_CMAES(zeros(3 * length(pieces)), 1.0, 0)
-rng = MersenneTwister(17)
-max_gen = 128
+rng = MersenneTwister()
+max_gen = 96
 
 fitnesses_ave = Array{Float64, 1}()
 fitnesses_max = Array{Float64, 1}()
 
 anim = @animate for gen in 1:max_gen
-    global fitnesses_ave, fitnesses_max
+    global fitnesses_ave, fitnesses_max, rng
     local X, fitnesses
-    # 個体生成
+
+    # 個体生成 
     X = samplePopulation(cmaes, rng=rng)
 
     # 回転角のパラメータを -π ~ π までに正規化
     for j in 1:size(X)[2]
         for i in 3:3:size(X)[1]
-            X[i, j] %= 2π - π
+            X[i, j] %= 2π
         end
     end
 
     # 評価値
-    loss(x) = loss_poly(x, Ks = 1.0, Ki=0.6, Kv = 0.8)
+    loss(x) = loss_poly(x, Ks = 1.0, Ki=0.6, Kv = 0.8 * gen / max_gen)
     fitnesses = get_fitness(X, loss)
 
     # 表示用
