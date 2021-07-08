@@ -32,11 +32,12 @@ end
 # Figure の宣言用関数
 # X x座標の配列, Y y座標の配列
 function MYPolygon(X::Array, Y::Array, T=Float64)
-    MYPolygon{T}(
+    MP = MYPolygon{T}(
         hcat(X, Y)', 
         length(X),
         calc_center(X, Y)
     )
+    return move(MP, -MP.center...)
 end
 
 # M (N*2)行列
@@ -138,7 +139,7 @@ function display(Polygons::MYPolygon...; center=false, vertex=false)
     end
 
     # plot!(pl, xlim=(xmin, xmax), ylim=(ymin, ymax))
-    plot!(pl, xlim=(-3, 3), ylim=(-3, 3), aspect_ratio =  1.0)
+    plot!(pl, xlim=(-3, 3), ylim=(-3, 3), aspect_ratio =  1.0, legend=false)
     return pl
 end
 
