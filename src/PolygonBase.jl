@@ -98,6 +98,21 @@ function rotate(P::MYPolygon{T}, θ::T, n::Int) where T
     return newP
 end
 
+# 図形を倍率dだけ拡大する
+function expand!(P::MYPolygon{T}, d::T) where T
+    for i in 1:P.n
+        # 重心から頂点へのベクトル
+        v = P.vertexes[:, i] - P.center
+        P.vertexes[:, i] = v * d + P.center
+    end
+end
+
+function expand(P::MYPolygon{T}, d::T) where T
+    newP = deepcopy(P)
+    expand!(newP, d)
+    return newP
+end
+
 # 図形を描画する
 function display(Polygons::MYPolygon...; center=false, vertex=false)
     xmax = ymax = -floatmax(Float64)
@@ -145,7 +160,7 @@ end
 
 function MYPolygon2LibGEOS(P::MYPolygon)
     str = "POLYGON(("
-    for i in 1:size(P.vertexes)[2]
+    for i in 1:P.n
         str *= string(P.vertexes[1, i])
         str *= " "
         str *= string(P.vertexes[2, i])
@@ -154,6 +169,33 @@ function MYPolygon2LibGEOS(P::MYPolygon)
     str *= string(P.vertexes[1, 1])
     str *= " "
     str *= string(P.vertexes[2, 1])
+    str *= "))"
+    return readgeom(str)
+end
+
+function make_hole_GEOS(P::MYPolygon, H::MYPolygon)
+    str = "POLYGON(("
+    for i in 1:P.n
+        str *= string(P.vertexes[1, i])
+        str *= " "
+        str *= string(P.vertexes[2, i])
+        str *= ","
+    end
+    str *= string(P.vertexes[1, 1])
+    str *= " "
+    str *= string(P.vertexes[2, 1])
+
+    str *= "),("
+
+    for i in H.n:-1:1
+        str *= string(H.vertexes[1, i])
+        str *= " "
+        str *= string(H.vertexes[2, i])
+        str *= ","
+    end
+    str *= string(H.vertexes[1, end])
+    str *= " "
+    str *= string(H.vertexes[2, end])
     str *= "))"
     return readgeom(str)
 end
