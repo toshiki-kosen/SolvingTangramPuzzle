@@ -1,3 +1,4 @@
+using LinearAlgebra: sqrt
 using Printf: Threads
 using Plots: Threads
 using ProgressMeter
@@ -12,13 +13,13 @@ function loss_poly(X::Array; Ks::Float64 = 1.0, Ki::Float64 = 0.0, Kv::Float64 =
 
     # silhouetteとpieceの共通部分の面積を求める
     tmp_p = move(pieces[1], X[1], X[2])
-    rotate!(tmp_p, X[3])
+    rotate!(tmp_p, X[3] * 2π)
     unioned = MYPolygon2LibGEOS(tmp_p)
     sum_pieces = LibGEOS.area(MYPolygon2LibGEOS(tmp_p))
 
     for i in 2:length(pieces)
         tmp_p = move(pieces[i], X[3i-2], X[3i-1])
-        rotate!(tmp_p, X[3i])
+        rotate!(tmp_p, X[3i] * 2π)
         unioned = LibGEOS.union(unioned, MYPolygon2LibGEOS(tmp_p))
         sum_pieces += MYPolygon2LibGEOS(tmp_p) |> LibGEOS.area
     end
@@ -35,7 +36,7 @@ function loss_poly(X::Array; Ks::Float64 = 1.0, Ki::Float64 = 0.0, Kv::Float64 =
         Δmin = 100.0
         for j in 1:length(pieces)
             tmp_p = move(pieces[j], X[3j - 2], X[3j - 1])
-            rotate!(tmp_p, X[3j])
+            rotate!(tmp_p, X[3j] * 2π)
             for v_p in 1:tmp_p.n
                 Δmin = min(Δmin, sum((silhouette.vertexes[:,v_s] - tmp_p.vertexes[:, v_p]).^2))
             end
@@ -48,7 +49,7 @@ function loss_poly(X::Array; Ks::Float64 = 1.0, Ki::Float64 = 0.0, Kv::Float64 =
     Δv = 0.0
     for i in 1:length(pieces)
         p = move(pieces[i], X[3i - 2], X[3i - 1])
-        rotate!(p, X[3i])
+        rotate!(p, X[3i] * 2π)
         Δmin = 100.0
         # シルエットについて見る
         for v_s in 1:silhouette.n
@@ -60,7 +61,7 @@ function loss_poly(X::Array; Ks::Float64 = 1.0, Ki::Float64 = 0.0, Kv::Float64 =
         for j in 1:length(pieces)
             if j == i continue end
             q = move(pieces[j], X[3j - 2], X[3j - 1])
-            rotate!(p, X[3j])
+            rotate!(p, X[3j] * 2π)
             for v_q in 1:q.n
                 for v_p in 1:p.n
                     Δmin = min(Δmin, sum((q.vertexes[:,v_q] - p.vertexes[:, v_p]).^2))
@@ -74,15 +75,15 @@ function loss_poly(X::Array; Ks::Float64 = 1.0, Ki::Float64 = 0.0, Kv::Float64 =
     return -100Ks * A + 100Kv * Δv + 100Ki * inter
 end
 
-silhouette = house2
-pieces = [tri_m, square_s]
+silhouette = square_s
+pieces = [tri_s, tri_s]
 
 # 初期化
 max_gen = 96
 sample_num = 256
 
 # 最終結果を保存するか否か
-save_results = true
+save_results = false
 if save_results
     rm("outputs", force=true, recursive=true)
     mkdir("outputs")
@@ -93,7 +94,7 @@ if save_results
     for t in 1:sample_num
         global best_fitnesses, correct_time
         local cmaes, rng
-        cmaes = init_CMAES(zeros(3 * length(pieces)), 1.0, 0)
+        cmaes = init_CMAES(zeros(3 * length(pieces)), 0.8, 18)
         fitnesses = zeros(cmaes.dim)
         X = zeros((cmaes.dim, cmaes.λ))
         rng = MersenneTwister(t)
@@ -105,12 +106,12 @@ if save_results
             # 回転角のパラメータを -π ~ π までに正規化
             for j in 1:size(X)[2]
                 for i in 3:3:size(X)[1]
-                    X[i, j] %= 2π - π
+                    X[i, j] = mod(X[i, j], 1.0)
                 end
             end
 
             # 評価値
-            loss(x) = loss_poly(x,Ks = 1.0, Ki=0.6, Kv=0.8)
+            loss(x) = loss_poly(x,Ks = 1.0, Ki=0.5, Kv=0.0)
             fitnesses = get_fitness(X, loss)
 
             # 更新
@@ -127,7 +128,7 @@ if save_results
         best_pieces = Array{MYPolygon, 1}()
         for i in 1:length(pieces)
             todisplay = move(pieces[i], X[3i-2, best_arg], X[3i-1, best_arg])
-            rotate!(todisplay, X[3i, best_arg])
+            rotate!(todisplay, X[3i, best_arg] * 2π)
             push!(best_pieces, todisplay)
         end
         display(silhouette, best_pieces...)
@@ -138,7 +139,7 @@ if save_results
 else
     best_fitnesses = Array{Float64, 1}()
     correct_time = Threads.Atomic{Int}(0)
-    p = Progress(sample_num÷8)
+    p = Progress(sample_num÷Threads.nthreads())
     Threads.@threads for t in 1:sample_num
         global best_fitnesses, correct_time
         local cmaes
@@ -154,12 +155,12 @@ else
             # 回転角のパラメータを -π ~ π までに正規化
             for j in 1:size(X)[2]
                 for i in 3:3:size(X)[1]
-                    X[i, j] %= 2π - π
+                    X[i, j] %= 1
                 end
             end
 
             # 評価値
-            loss(x) = loss_poly(x,Ks = 1.0, Ki=0.6 , Kv=0.8)
+            loss(x) = loss_poly(x,Ks = 1.0, Ki=0.0 , Kv=0.0)
             fitnesses = get_fitness(X, loss)
 
             # 更新
@@ -167,7 +168,7 @@ else
         end
         push!(best_fitnesses, maximum(fitnesses))
 
-        if -best_fitnesses[end] > 95
+        if -best_fitnesses[end] > 94
             Threads.atomic_add!(correct_time, 1)
         end
         
