@@ -2,6 +2,7 @@ include("PolygonBase.jl")
 include("silhouette&pieces.jl")
 plotly()
 
-polygons = [tri_s]
+P = tri_l
+H = tri_s
 
-display(polygons..., vertex=false)
+plot(make_hole_GEOS(P, H))
