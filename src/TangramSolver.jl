@@ -112,7 +112,7 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
                 eS = silhouette.vertexes[:, mod(s+1, silhouette.n) + 1] - silhouette.vertexes[:, mod(s, silhouette.n) + 1]
                 cosθ4 = abs(eP' * eS / (norm(eP) * norm(eS) ))
 
-                cosθ = min(cosθ1, cosθ2, cosθ3, cosθ4)
+                cosθ = max(cosθ1, cosθ2, cosθ3, cosθ4)
             end
         end
 
