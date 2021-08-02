@@ -8,7 +8,7 @@ include("ESBase.jl")
 include("silhouette&pieces.jl")
 
 # X[1つめのピースのx座標, 1つめのピースのy座標, １つめの回転角Θ, 2つめのx座標, ...]
-function loss_poly(X::Array; Ks::Float64 = 1.0, Ki::Float64 = 0.0, Kv::Float64 = 0.8)
+function loss_poly(X::Array, loss_args::Array{Float64, 1})
     global pices, silhouette
 
     # silhouetteとpieceの共通部分の面積を求める
@@ -28,9 +28,9 @@ function loss_poly(X::Array; Ks::Float64 = 1.0, Ki::Float64 = 0.0, Kv::Float64 =
 
     # 各2pieceの共通部分を求める
     inter = 1.0 - LibGEOS.area(unioned) / sum_pieces
+    outer = 1.0 - LibGEOS.area(tmp)/sum_pieces
 
-    # 頂点の誤差成分 (シルエットベース)
-    """
+    # 頂点の誤差成分 (シルエットベース 緩い)
     Δv = 0.0
     for v_s in 1:silhouette.n
         Δmin = 100.0
@@ -41,42 +41,85 @@ function loss_poly(X::Array; Ks::Float64 = 1.0, Ki::Float64 = 0.0, Kv::Float64 =
                 Δmin = min(Δmin, sum((silhouette.vertexes[:,v_s] - tmp_p.vertexes[:, v_p]).^2))
             end
         end
-        # Δv += 2tanh(2Δmin) / (π*silhouette.n)
-        Δv = max(Δv, Δmin)
+        Δv += Δmin / silhouette.n
+        # Δv = max(Δv, Δmin)
     end
+    
+    # 頂点の誤差成分 (ピースベース 厳しい)
     """
-    # 頂点の誤差成分 (ピースベース)
     Δv = 0.0
     for i in 1:length(pieces)
         p = move(pieces[i], X[3i - 2], X[3i - 1])
         rotate!(p, X[3i] * 2π)
-        Δmin = 100.0
-        # シルエットについて見る
-        for v_s in 1:silhouette.n
-            for v_p in 1:p.n
+        Δmax = 0.0
+        # 頂点ごとに誤差を見る
+        for v_p in 1:p.n
+            Δmin = 100.0
+            # シルエットについて見る
+            for v_s in 1:silhouette.n
                 Δmin = min(Δmin, sum((silhouette.vertexes[:,v_s] - p.vertexes[:, v_p]).^2))
             end
-        end
-        # その他のピースについて見る
-        for j in 1:length(pieces)
-            if j == i continue end
-            q = move(pieces[j], X[3j - 2], X[3j - 1])
-            rotate!(p, X[3j] * 2π)
-            for v_q in 1:q.n
-                for v_p in 1:p.n
+            # その他のピースについて見る
+            for j in 1:length(pieces)
+                if j == i continue end
+                q = move(pieces[j], X[3j - 2], X[3j - 1])
+                rotate!(p, X[3j] * 2π)
+                for v_q in 1:q.n
                     Δmin = min(Δmin, sum((q.vertexes[:,v_q] - p.vertexes[:, v_p]).^2))
                 end
             end
+            Δmax = max(Δmax, Δmin)
         end
         # Δv += 2tanh(2Δmin) / (π*silhouette.n)
-        Δv = max(Δv, Δmin)
+        # Δv = max(Δv, Δmin)
+        Δv += Δmax
+    end
+    """
+
+    # 辺の誤差成分
+    E = 0.0
+    for i in 1:length(pieces)
+        P = move(pieces[i], X[3i-2], X[3i-1])
+        rotate!(P, X[3i])
+
+        cosθ = 0.0
+
+        # シルエットの各頂点と距離が最小な点を探す
+        min_d = 100.0
+        for p in 0:P.n-1, s in 0:silhouette.n-1
+            d = sum((P.vertexes[:, p + 1] - silhouette.vertexes[:, s + 1]).^2)
+            # 最小の大きさの角度を探す
+            if d < min_d
+                eP = P.vertexes[:, mod(p, P.n) + 1] - P.vertexes[:, mod(p-1, P.n) + 1]
+                eS = silhouette.vertexes[:, mod(s, silhouette.n) + 1] - silhouette.vertexes[:, mod(s-1, silhouette.n) + 1]
+                cosθ1 = abs(eP' * eS / (norm(eP) * norm(eS) ))
+
+                eP = P.vertexes[:, mod(p, P.n) + 1] - P.vertexes[:, mod(p-1, P.n) + 1]
+                eS = silhouette.vertexes[:, mod(s+1, silhouette.n) + 1] - silhouette.vertexes[:, mod(s, silhouette.n) + 1]
+                cosθ2 = abs(eP' * eS / (norm(eP) * norm(eS) ))
+
+                eP = P.vertexes[:, mod(p+1, P.n) + 1] - P.vertexes[:, mod(p, P.n) + 1]
+                eS = silhouette.vertexes[:, mod(s, silhouette.n) + 1] - silhouette.vertexes[:, mod(s-1, silhouette.n) + 1]
+                cosθ3 = abs(eP' * eS / (norm(eP) * norm(eS) ))
+
+                eP = P.vertexes[:, mod(p+1, P.n) + 1] - P.vertexes[:, mod(p, P.n) + 1]
+                eS = silhouette.vertexes[:, mod(s+1, silhouette.n) + 1] - silhouette.vertexes[:, mod(s, silhouette.n) + 1]
+                cosθ4 = abs(eP' * eS / (norm(eP) * norm(eS) ))
+
+                cosθ = max(cosθ1, cosθ2, cosθ3, cosθ4)
+            end
+        end
+
+        E += cosθ / length(pieces)
     end
 
-    return -100Ks * A + 100Kv * Δv + 100Ki * inter
+    return -loss_args[1] * A + loss_args[2] * Δv + loss_args[3] * outer + loss_args[4] * E
 end
 
 silhouette = square_s
 pieces = [tri_s, tri_s]
+
+loss_args = [100.0, 0.0, 20.0, 20.0]
 
 # 初期化
 max_gen = 96
@@ -111,7 +154,7 @@ if save_results
             end
 
             # 評価値
-            loss(x) = loss_poly(x,Ks = 1.0, Ki=0.5, Kv=0.0)
+            loss(x) = loss_poly(x, loss_args)
             fitnesses = get_fitness(X, loss)
 
             # 更新
@@ -160,7 +203,7 @@ else
             end
 
             # 評価値
-            loss(x) = loss_poly(x,Ks = 1.0, Ki=0.0 , Kv=0.0)
+            loss(x) = loss_poly(x, loss_args)
             fitnesses = get_fitness(X, loss)
 
             # 更新
