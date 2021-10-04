@@ -137,27 +137,28 @@ function loss_poly_light(X::Array)
     return -A * 100
 end
 
-silhouette = square_l
-pieces = [tri_s, tri_s, parallelogram, tri_l, tri_l, tri_m, square_s]
-
-loss_args = [100.0, 85.0, 0.0, 20.0]
+silhouette = hexagon_m
+pieces = [tri_s, tri_s, parallelogram, tri_m]
 
 # 初期化
 max_gen = 128
-sample_num = 2048
+sample_num = 256
 
 # 最終結果を保存するか否か
 save_results = false
-if save_results
-    rm("outputs", force=true, recursive=true)
-    mkdir("outputs")
+
+for c3 in 0.0:10:100.0
+    c2 = 10.0
+    loss_args = [100.0, c3, 0.0, c2]
+
+    fpath = @sprintf "outputs\\outputs_c2-%03d_c3-%03d" Int(c2) Int(c3)
+    rm(fpath, force=true, recursive=true)
+    mkdir(fpath)
 
     best_fitnesses = Array{Float64, 1}()
-    correct_time = 0
-    p = Progress(sample_num)
+    p = Progress(sample_num, desc="c2:$(Int(c2)) c3:$(Int(c3)): ")
     for t in 1:sample_num
-        global best_fitnesses, correct_time
-        local cmaes, rng
+        # local cmaes, rng
         cmaes = init_CMAES(zeros(3 * length(pieces)), 0.8, 18)
         fitnesses = zeros(cmaes.dim)
         X = zeros((cmaes.dim, cmaes.λ))
@@ -183,10 +184,6 @@ if save_results
         end
         push!(best_fitnesses, maximum(fitnesses))
 
-        if -best_fitnesses[end] > 80
-            correct_time += 1
-        end
-        
         # 表示用
         best_arg = argmin(fitnesses)
         best_pieces = Array{MYPolygon, 1}()
@@ -196,56 +193,8 @@ if save_results
             push!(best_pieces, todisplay)
         end
         display(silhouette, best_pieces...)
-        savefig(@sprintf "outputs\\%02.0f_%d_results" -best_fitnesses[end] t)
+        savefig(@sprintf "outputs\\outputs_c2-%03d_c3-%03d\\%02.0f_%d_results" Int(c2) Int(c3) -best_fitnesses[end] t)
 
         next!(p)
     end
-else
-    best_fitnesses = Array{Float64, 1}()
-    correct_time = Threads.Atomic{Int}(0)
-    p = Progress(sample_num÷Threads.nthreads())
-    Threads.@threads for t in 1:sample_num
-        global best_fitnesses, correct_time
-        local cmaes
-        cmaes = init_CMAES(zeros(3 * length(pieces)), 1.0, 0)
-        fitnesses = zeros(cmaes.dim)
-        X = zeros((cmaes.dim, cmaes.λ))
-        rng = MersenneTwister(t)
-
-        for gen in 1:max_gen
-            # 個体生成
-            X = samplePopulation(cmaes, rng=rng)
-
-            # 回転角のパラメータを -π ~ π までに正規化
-            for j in 1:size(X)[2]
-                for i in 3:3:size(X)[1]
-                    X[i, j] %= mod(X[i, j], 1.0)
-                end
-            end
-
-            # 評価値
-            # loss(x) = loss_poly(x, loss_args)
-            loss(x) = loss_poly_light(x)
-            fitnesses = get_fitness(X, loss)
-
-            # 更新
-            update!(cmaes, X, fitnesses, gen)
-        end
-        push!(best_fitnesses, maximum(fitnesses))
-
-        if -best_fitnesses[end] > 94
-            Threads.atomic_add!(correct_time, 1)
-        end
-        
-        if Threads.threadid() == 1
-            next!(p)
-        end
-    end
 end
-
-pl = histogram(-best_fitnesses, bins = 40:5:100, xlabel="Fitness", ylabel="The number of answers", lab=false)
-
-println("correct prob: $(correct_time[])/$(sample_num) = $(100correct_time[]/sample_num)%")
-
-savefig(pl, "fitness_distribusion_$(sample_num)samples_$(correct_time[])-corrects.png")
-Base.display(pl)
