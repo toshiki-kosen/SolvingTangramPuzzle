@@ -47,7 +47,7 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
                 Δmin = min(Δmin, sum((silhouette.vertexes[:,v_s] - tmp_p.vertexes[:, v_p]).^2))
             end
         end
-        Δv += 2tanh(2Δmin) / (π*silhouette.n)
+        Δv += Δmin / silhouette.n
         # Δv = max(Δv, Δmin)
     end
     
@@ -122,20 +122,20 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
     return -loss_args[1] * A + loss_args[2] * Δv + loss_args[3] * outer + loss_args[4] * E
 end
 
-silhouette = square_l
-pieces = [tri_l, tri_l]
+silhouette = hexagon_m
+pieces = [tri_m, tri_s, tri_s, parallelogram]
 
 # 初期化
 cmaes = init_CMAES(zeros(3 * length(pieces)), 1.0, 0)
 seed = MersenneTwister()
-max_gen = 96
+max_gen = 196
 
 println(seed)
 
 fitnesses_ave = Array{Float64, 1}()
 fitnesses_max = Array{Float64, 1}()
 
-loss_args = [100.0, 20.0, 0.0, 80.0]
+loss_args = [100.0, 20.0, 50.0, 20.0]
 
 anim = @animate for gen in 1:max_gen
     global fitnesses_ave, fitnesses_max, seed, cmaes, loss_args
