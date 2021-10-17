@@ -147,15 +147,15 @@ sample_num = 256
 # 最終結果を保存するか否か
 save_results = false
 
-for c3 in 0.0:10:100.0
-    c2 = 10.0
+# c2 60~90, c3 80~100
+for c2 in 88.0:2:90.0, c3 in 80.0:2:100.0
     loss_args = [100.0, c3, 0.0, c2]
 
     fpath = @sprintf "outputs\\outputs_c2-%03d_c3-%03d" Int(c2) Int(c3)
     rm(fpath, force=true, recursive=true)
     mkdir(fpath)
 
-    best_fitnesses = Array{Float64, 1}()
+    best_fitnesses = Array{Float64, 1}() 
     p = Progress(sample_num, desc="c2:$(Int(c2)) c3:$(Int(c3)): ")
     for t in 1:sample_num
         # local cmaes, rng
