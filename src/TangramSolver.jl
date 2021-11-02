@@ -128,7 +128,7 @@ pieces = [tri_m, tri_s, tri_s, parallelogram]
 # 初期化
 cmaes = init_CMAES(zeros(3 * length(pieces)), 1.0, 0)
 seed = MersenneTwister()
-max_gen = 196
+max_gen = 96
 
 println(seed)
 

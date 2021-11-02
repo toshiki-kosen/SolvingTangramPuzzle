@@ -137,17 +137,18 @@ function loss_poly_light(X::Array)
     return -A * 100
 end
 
-silhouette = square_l
-pieces = [tri_s, tri_s, parallelogram, tri_l, tri_l, tri_m, square_s]
+silhouette = katana
+pieces = [tri_s, tri_s, square_s, tri_m, tri_l, tri_l, parallelogram]
 
+# loss_args = [100.0, 0.0, 0.0, 0.0]
 loss_args = [100.0, 85.0, 0.0, 20.0]
 
 # 初期化
-max_gen = 128
-sample_num = 2048
+max_gen = 196
+sample_num = 128
 
 # 最終結果を保存するか否か
-save_results = false
+save_results = true
 if save_results
     rm("outputs", force=true, recursive=true)
     mkdir("outputs")
@@ -176,6 +177,7 @@ if save_results
 
             # 評価値
             loss(x) = loss_poly(x, loss_args)
+            # loss(x) = loss_poly_light(x)
             fitnesses = get_fitness(X, loss)
 
             # 更新

@@ -4,15 +4,6 @@ include("PolygonBase.jl")
 include("ESBase.jl")
 include("silhouette&pieces.jl")
 
-levy(X::Array) = sin(3π*X[1])^2 + (X[1] - 1)^2 * (1 + sin(3π*X[2])^2) + (X[2] - 1)^2 * (1 + sin(2π * X[2])^2)
-levy(x, y) = levy([x, y])
-
-rastrigin(x, y) = 10 * 2 + x^2 - 10cos(2π*x) + y^2 - 10cos(2π*y)
-rastrigin(X::Array) = rastrigin(X[1], X[2])
-
-eggholder(x, y) = -(100*y + 47)*sin(sqrt(abs(50x + 100y + 47))) - 100x*sin(sqrt(abs(100x - 100y - 47)))
-eggholder(X::Array) = eggholder(X[1], X[2])
-
 # X[1つめのピースのx座標, 1つめのピースのy座標, １つめの回転角Θ, 2つめのx座標, ...]
 function loss_poly(X::Array, loss_args::Array{Float64, 1})
     global pices, silhouette
@@ -122,70 +113,108 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
     return -loss_args[1] * A + loss_args[2] * Δv + loss_args[3] * outer + loss_args[4] * E
 end
 
+function reviewer(pieces, X, silhouette)
+    # silhouetteと各pieceの共通部分の面積を求める
+    score = zeros(Float64, length(pieces))
+
+    for i in 1:length(pieces)
+        tmp_p = move(pieces[i], X[3i-2], X[3i-1])
+        rotate!(tmp_p, X[3i] * 2π)
+        GEOS_p = MYPolygon2LibGEOS(tmp_p)
+        score[i] = 100 * intersectionArea(tmp_p, silhouette) / LibGEOS.area(GEOS_p)
+    end
+    return score
+end
+
 silhouette = hexagon_m
-pieces = [tri_m, tri_s, tri_s, parallelogram]
+pieces = [tri_m, tri_s, tri_s, square_s]
 
 # 初期化
-cmaes = init_CMAES(zeros(3 * length(pieces)), 1.0, 0)
+λ = 18
+cmaes = init_CMAES(zeros(3 * length(pieces)), 1.0, λ)
 seed = MersenneTwister()
 max_gen = 96
+
+recycling_durability = 4
+recycle_thread = 95
+bad_num = length(pieces)
+X = zeros(Float64, 3length(pieces), λ)
+Y = zeros(Float64, 0, λ)
 
 println(seed)
 
 fitnesses_ave = Array{Float64, 1}()
 fitnesses_max = Array{Float64, 1}()
 
-loss_args = [100.0, 20.0, 50.0, 20.0]
+loss_args = [100.0, 92.0, 0.0, 64.0]
 
-anim = @animate for gen in 1:max_gen
-    global fitnesses_ave, fitnesses_max, seed, cmaes, loss_args
-    local X, fitnesses
+while recycling_durability > 0 && bad_num > 0
+    # best_argのグローバル化
+    best_arg = 0
+    # Z = vcat(X, Y)
+    anim = @animate for gen in 1:max_gen
+        # 個体生成 
+        global X = samplePopulation(cmaes, rng=seed)
 
-    # 個体生成 
-    X = samplePopulation(cmaes, rng=seed)
+        # 回転角のパラメータを -π ~ π までに正規化
+        for j in 1:size(X)[2]
+            for i in 3:3:size(X)[1]
+                X[i, j] = mod(X[i, j], 1.0)
+            end
+        end
 
-    # 回転角のパラメータを -π ~ π までに正規化
-    for j in 1:size(X)[2]
-        for i in 3:3:size(X)[1]
-            X[i, j] = mod(X[i, j], 1.0)
+        # 評価値
+        Z = vcat(X, Y)
+        loss(x) = loss_poly(x, loss_args)
+        fitnesses = get_fitness(Z, loss)
+
+        # 表示用
+        best_arg = argmin(fitnesses)
+        best_pieces = Array{MYPolygon, 1}()
+        for i in 1:length(pieces)
+            todisplay = move(pieces[i], Z[3i-2, best_arg], Z[3i-1, best_arg])
+            rotate!(todisplay, Z[3i, best_arg] * 2π)
+            push!(best_pieces, todisplay)
+        end
+        display(silhouette, best_pieces...)
+
+        # 評価用
+        push!(fitnesses_ave, sum(fitnesses)/size(Z)[2])
+        push!(fitnesses_max, minimum(fitnesses))
+
+        # 更新
+        update!(cmaes, X, fitnesses, gen % (max_gen ÷ 2))
+    end
+    gif(anim, "best_pieces_$(recycling_durability).gif", fps=10)
+
+    # 正解っぽいピースと不正解っぽいピースに分ける
+    Z = vcat(X, Y)
+    score = reviewer(pieces, Z[:,best_arg], silhouette)
+    println(score)
+    new_pieces = []
+    global Y = zeros(Float64, 0)
+    global bad_num = 0
+    for i in 1:length(pieces)
+        if score[i] < recycle_thread
+            pushfirst!(new_pieces, pieces[i])
+            global bad_num += 1
+        else
+            push!(new_pieces, pieces[i])
+            push!(Y, Z[3i-2, best_arg], Z[3i-1, best_arg], Z[3i, best_arg])
         end
     end
+    global Y = repeat(Y, 1, λ)
 
-    # 評価値
-    loss(x) = loss_poly(x, loss_args)
-    fitnesses = get_fitness(X, loss)
 
-    # 表示用
-    best_arg = argmin(fitnesses)
-    best_pieces = Array{MYPolygon, 1}()
-    for i in 1:length(pieces)
-        todisplay = move(pieces[i], X[3i-2, best_arg], X[3i-1, best_arg])
-        rotate!(todisplay, X[3i, best_arg] * 2π)
-        push!(best_pieces, todisplay)
-    end
-    display(silhouette, best_pieces...)
-
-    # 評価用
-    push!(fitnesses_ave, sum(fitnesses)/size(X)[2])
-    push!(fitnesses_max, minimum(fitnesses))
-
-    # 更新
-    update!(cmaes, X, fitnesses, gen % (max_gen ÷ 2))
-
-    # 再出発
-    if false # 2gen == max_gen
-        # println("Searching in local...")
-        loss_args = [100.0, 0.0, 100.0, 0.0]
-        best_arg = argmin(fitnesses)
-        cmaes = init_CMAES(X[:, best_arg], 1.0, 128)
-    end
+    println(bad_num)
+    # piecesを並び替えてCMAESを不正解のだけ調整するように初期化する
+    global cmaes = init_CMAES(zeros(3 * bad_num), 1.0, 18)
+    global recycling_durability -= 1
 end
 
-gif(anim, "best_pieces.gif", fps=10)
-
-pl = plot(1:max_gen, -fitnesses_max, lab="Average", xaxis="generation", yaxis="fitness [%]", legend = false, w=2.5)
+# pl = plot(1:max_gen, -fitnesses_max, lab="Average", xaxis="generation", yaxis="fitness [%]", legend = false, w=2.5)
 # plot!(pl, 1:max_gen, -fitnesses_max, line=:dash, lab="Maximum", ylim=(minimum(-fitnesses_ave), 110), yticks = 100:-20:minimum(-fitnesses_ave))
-plot!(pl, xtickfontsize=13, ytickfontsize=13, xguidefontsize=13, yguidefontsize=13)
+# plot!(pl, xtickfontsize=13, ytickfontsize=13, xguidefontsize=13, yguidefontsize=13)
 
-savefig(pl, "fitnesses.png")
-Base.display(pl)
+# savefig(pl, "fitnesses.png")
+# Base.display(pl)

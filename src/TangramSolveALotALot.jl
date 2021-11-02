@@ -144,12 +144,9 @@ pieces = [tri_s, tri_s, parallelogram, tri_m]
 max_gen = 128
 sample_num = 256
 
-# 最終結果を保存するか否か
-save_results = false
-
 # c2 60~90, c3 80~100
-for c2 in 88.0:2:90.0, c3 in 80.0:2:100.0
-    loss_args = [100.0, c3, 0.0, c2]
+for c2 in 72.0:2:72.0, c3 in 86.0:2:86.0   
+loss_args = [100.0, c3, 0.0, c2]
 
     fpath = @sprintf "outputs\\outputs_c2-%03d_c3-%03d" Int(c2) Int(c3)
     rm(fpath, force=true, recursive=true)

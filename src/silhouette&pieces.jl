@@ -18,10 +18,16 @@ rect_s = MYPolygon([0, 2, 2, 0], [0, 0, 1, 1])
 hurt_s = MYPolygon([0, 1, 1, 0, -1, -1], [0, 1, 2, 1, 2, 1])
 
 # tri_m, tri_s, tri_s, parallelogram
+# tri_m, tri_s, tri_s, square_s
 hexagon_m = MYPolygon([0, √2, 2.12132, √2, 0, -0.7071068], [0, 0, 0.7071068, √2, √2, 0.7071068])
 
 # tri_m, tri_s, tri_s
-square_m = MYPolygon([0, √2, √2, 0], [0, 0, √2, √2])
+square_3 = MYPolygon([0, √2, √2, 0], [0, 0, √2, √2])
+
+# tri_l, tri_s, tri_s, square_s
+# tri_l, tri_m, tri_s, square_s
+# tri_l, tri_s, tri_s, parallelogram
+square_4 = MYPolygon([0, 2, 2, 0], [0, 0, 2, 2])
 
 # tri_l, tri_l, tri_m, tri_s, tri_s, square_s, parallelogram
 square_l = MYPolygon([0, 2*√2, 2*√2, 0], [0, 0, 2*√2, 2*√2])
@@ -41,3 +47,14 @@ antena = MYPolygon([-√2, √2, 0, 0.5*√2, 0.5*√2, -√2, 0], [0, 0, √2, 
 # tri_l, tri_l, tri_m, tri_s, tri_s, square_s, parallelogram
 katana = MYPolygon([-1, 0, 1, 2, 1.22, 5.63, 5.63, 4.62, 4.62, 3.20, 3.20, 1.21, 1.21, 0, 0, -1], 
                    [0, 0, 1, 1, 1.79, 6.21, 7.21, 6.22, 5.21, 5.21, 3.79, 3.79, 1.79, 3, 2, 1])
+
+# tri_l, tri_m, tri_s, square_s
+pencile4 = MYPolygon([0, √2, √2, 0.5*√2, 0], [0, 0, 2*√2, 2.5*√2, 2*√2])
+
+# tri_l, tri_s, tri_s
+# tri_m, tri_s, tri_s, square_s
+# tri_l, tri_s, tri_s, parallelogram
+crown4 = MYPolygon([-√2, √2, √2, 0.5*√2, 0, -0.5*√2, √2], [0, 0, √2, -.5*√2, √2, 0.5*√2, √2])
+
+# tri_l, tri_m, tri_s, square_s, parallelogram
+Taiikusuwaring_human = MYPolygon([1, -0.5*√2, -√2, -0.5*√2, -2, -√2, -1.5*√2, -0.5*√2, 1-√2, 1], [0, 1+0.5*√2, 1, 0.291, -1, -1, -1-0.5*√2, -1-0.5*√2, -√2, √2])
