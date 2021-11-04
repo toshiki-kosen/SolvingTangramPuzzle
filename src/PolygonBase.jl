@@ -214,3 +214,11 @@ function unionArea(P1::MYPolygon, P2::MYPolygon)
     gePu = LibGEOS.union(geP1, geP2)
     return LibGEOS.area(gePu)
 end
+
+function symmetricDifference(P1::MYPolygon, P2::MYPolygon)
+    geP1 = MYPolygon2LibGEOS(P1)
+    geP2 = MYPolygon2LibGEOS(P2)
+    geSD = LibGEOS.symmetricDifference(geP1, geP2)
+
+    return LibGEOS.area(geSD)
+end
