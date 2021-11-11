@@ -10,6 +10,18 @@ house2 = MYPolygon([0, 1, 1, 1.5, 0.5, -0.5, 0], [0, 0, 1, 1, 2, 1, 1])
 # tri_l, tri_m, tri_s, tri_s
 house4 = MYPolygon([-0.5*√2, 0.5*√2, 0.5*√2, √2, 0, -√2, -0.5*√2], [0, 0, √2, √2, 2*√2, √2, √2])
 
+# tri_l, square_s
+arrow2 = MYPolygon([0, 3, 1, 1, 0], [0, 0, 2, 1, 1])
+
+# tri_s, parallelogram
+trapezoid2 = MYPolygon([-√2, √2, 0.5*√2, -0.5*√2], [0, 0, 0.5*√2, 0.5*√2])
+
+# tri_s, parallelogram
+trapezoid2_2 = MYPolygon([0, 0.5*√2, 0, -√2], [0, 0.5*√2, √2, 0])
+
+# tri_s, square_s
+tri_above_square = MYPolygon([0, 1, 1, 0, 0, 1, 0, 0, 0], [0, 0, 1, 1, 2, 3, 3, 2, 1])
+
 # tri_s, tri_s, parallelogram
 # tri_s, tri_s, square_s
 rect_s = MYPolygon([0, 2, 2, 0], [0, 0, 1, 1])
@@ -33,7 +45,10 @@ square_4 = MYPolygon([0, 2, 2, 0], [0, 0, 2, 2])
 square_l = MYPolygon([0, 2*√2, 2*√2, 0], [0, 0, 2*√2, 2*√2])
 
 # tri_l, tri_l
-betterfly = MYPolygon([0, √2, 2*√2, 2*√2, √2, 0], [0, √2, 0, 2*√2, √2, 2*√2])
+butterfly = MYPolygon([0, √2, 2*√2, 2*√2, √2, 0], [0, √2, 0, 2*√2, √2, 2*√2])
+
+# tri_l, tri_l
+pesudo_butterfly = MYPolygon([-1.16, -0.25, 1.16, 1.16, 0.25, -1.16], [-1.16, -0.25, -1.67, 1.16, 0.25, 1.67])
 
 # tri_s, square_s, parallelogram
 note = MYPolygon([0, 0.5*√2, 0.5*√2, 1.70, 0, 0, -0.5*√2], [-0.5*√2, 0, 0.413, 0.413, 1.5*√2, 0.5*√2, 0])
@@ -53,8 +68,17 @@ pencile4 = MYPolygon([0, √2, √2, 0.5*√2, 0], [0, 0, 2*√2, 2.5*√2, 2*�
 
 # tri_l, tri_s, tri_s
 # tri_m, tri_s, tri_s, square_s
-# tri_l, tri_s, tri_s, parallelogram
-crown4 = MYPolygon([-√2, √2, √2, 0.5*√2, 0, -0.5*√2, √2], [0, 0, √2, -.5*√2, √2, 0.5*√2, √2])
+# tri_m, tri_s, tri_s, parallelogram
+crown4 = MYPolygon([-√2, √2, √2, 0.5*√2, 0, -0.5*√2, -√2], [0, 0, √2, 0.5*√2, √2, 0.5*√2, √2])
+
+# tri_l, tri_l, tri_s, tri_s
+snake = MYPolygon([-2, -1, -1, 1, 1, 0, 0, -2], [-2, -2, -1, -1, 1, 1, 0, 0])
+
+# tri_l, tri_l, tri_m, tri_s, tri_s, square_s, parallelogram
+faucet = MYPolygon([-2, -1, -1, 2, 2, 1, 1, 2, -1, 0, 0, -2], [-2, -2, -1, -1, 0, 0, 1, 2, 2, 1, 0, 0])
 
 # tri_l, tri_m, tri_s, square_s, parallelogram
 Taiikusuwaring_human = MYPolygon([1, -0.5*√2, -√2, -0.5*√2, -2, -√2, -1.5*√2, -0.5*√2, 1-√2, 1], [0, 1+0.5*√2, 1, 0.291, -1, -1, -1-0.5*√2, -1-0.5*√2, -√2, √2])
+
+# tri_l, tri_l, tri_m, tri_s, tri_s, square_s, parallelogram
+crab_scissor = MYPolygon([0, √2, √2, 1.5*√2, 0.5*√2, 0.5*√2, 0.5*√2-1, 0.5*√2-1, -1-0.5*√2, -0.5*√2, -0.5*√2, -√2, -0.5*√2], [0, 0, √2, 1.5*√2, 2.5*√2, 1+0.5*√2, 1+0.5*√2, 1+2.5*√2, 1+1.5*√2, 1.5*√2, 0.5*√2, 0, -0.5*√2])
