@@ -137,15 +137,15 @@ function loss_poly_light(X::Array)
     return -A * 100
 end
 
-silhouette = katana
-pieces = [tri_s, tri_s, square_s, tri_m, tri_l, tri_l, parallelogram]
+silhouette = butterfly_s
+pieces = [tri_m, tri_s, tri_s]
 
 # loss_args = [100.0, 0.0, 0.0, 0.0]
 loss_args = [100.0, 85.0, 0.0, 20.0]
 
 # 初期化
-max_gen = 196
-sample_num = 128
+max_gen = 128
+sample_num = 256
 
 # 最終結果を保存するか否か
 save_results = true
@@ -175,12 +175,12 @@ if save_results
                 end
             end
 
-            # 評価値
-            loss(x) = loss_poly(x, loss_args)
+            # 評価値 
             # loss(x) = loss_poly_light(x)
+            loss(x) = loss_poly(x, loss_args)
             fitnesses = get_fitness(X, loss)
 
-            # 更新
+            # 更新 
             update!(cmaes, X, fitnesses, gen)
         end
         push!(best_fitnesses, maximum(fitnesses))
@@ -245,9 +245,9 @@ else
     end
 end
 
-pl = histogram(-best_fitnesses, bins = 40:5:100, xlabel="Fitness", ylabel="The number of answers", lab=false)
+# pl = histogram(-best_fitnesses, bins = 40:5:100, xlabel="Fitness", ylabel="The number of answers", lab=false)
 
-println("correct prob: $(correct_time[])/$(sample_num) = $(100correct_time[]/sample_num)%")
+# println("correct prob: $(correct_time[])/$(sample_num) = $(100correct_time[]/sample_num)%")
 
-savefig(pl, "fitness_distribusion_$(sample_num)samples_$(correct_time[])-corrects.png")
-Base.display(pl)
+# savefig(pl, "fitness_distribusion_$(sample_num)samples_$(correct_time[])-corrects.png")
+# Base.display(pl)
