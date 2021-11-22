@@ -113,21 +113,89 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
     return -loss_args[1] * A + loss_args[2] * Δv + loss_args[3] * outer + loss_args[4] * E
 end
 
-function reviewer(pieces, X, silhouette)
+# 面積ベースのピース批評
+# シルエットから飛び出たやつしか扱えない
+function reviewer_1(pieces::Array{MYPolygon{Float64}, 1}, X, silhouette::MYPolygon, threshold)
     # silhouetteと各pieceの共通部分の面積を求める
-    score = zeros(Float64, length(pieces))
+    score = zeros(Bool, length(pieces))
 
     for i in 1:length(pieces)
         tmp_p = move(pieces[i], X[3i-2], X[3i-1])
         rotate!(tmp_p, X[3i] * 2π)
         GEOS_p = MYPolygon2LibGEOS(tmp_p)
-        score[i] = 100 * intersectionArea(tmp_p, silhouette) / LibGEOS.area(GEOS_p)
+        score[i] = threshold < intersectionArea(tmp_p, silhouette) / LibGEOS.area(GEOS_p)
     end
     return score
 end
 
-silhouette = hexagon_m
-pieces = [tri_m, tri_s, tri_s, square_s]
+# 頂点ベースの批評
+# おそらく、あらゆるケースを扱えるが計算量がエグそう
+function reviewer_2(pieces::Array{MYPolygon{Float64}, 1}, X, silhouette::MYPolygon, threshold::T) where T <: Number
+    # 各ピースの各頂点の中でもっともシルエットや他のピースの辺から離れているものを探す
+    score = trues(length(pieces))
+
+    for i in 1:length(pieces)
+        optied_piece = move(pieces[i], X[3i-2], X[3i-1])
+        rotate!(optied_piece, X[3i] * 2π)
+        for p in 1:optied_piece.n
+            P = optied_piece.vertexes[:, p]
+            vertex_check = false
+
+            # シルエットについて
+            for s in 1:silhouette.n
+                A = silhouette.vertexes[:, s]
+                if s < silhouette.n
+                    B = silhouette.vertexes[:, s+1]
+                else
+                    B = silhouette.vertexes[:, 1]
+                end
+
+                if distance_seg2point(A, B, P) < threshold
+                    vertex_check = true
+                    break
+                end
+            end
+
+            # 他のピースについて
+            for j in 1:length(pieces)
+                if vertex_check
+                    break   
+                elseif j == i
+                    continue
+                end
+                optied_qiece = move(pieces[j], X[3j-2], X[3j-1])
+                rotate!(optied_qiece, X[3j] * 2π)
+                for q in 1:pieces[j].n
+                    A = optied_qiece.vertexes[:, q]
+                    if q < pieces[j].n
+                        B = optied_qiece.vertexes[:, q+1]
+                    else
+                        B = optied_qiece.vertexes[:, 1]
+                    end
+
+                    if distance_seg2point(A, B, P) < threshold
+                        vertex_check = true
+                        break
+                    end
+                end
+                if vertex_check
+                    break
+                end
+            end
+
+            # 一つでもダメな頂点があったらそのピースは終わり
+            if vertex_check
+            else
+                score[i] = false
+                break
+            end
+        end
+    end
+    return score
+end
+
+silhouette = small_stand
+pieces = [tri_l, tri_s, tri_s]
 
 # 初期化
 λ = 18
@@ -136,7 +204,7 @@ seed = MersenneTwister()
 max_gen = 96
 
 recycling_durability = 4
-recycle_thread = 95
+recycle_threshold = 0.1
 bad_num = length(pieces)
 X = zeros(Float64, 3length(pieces), λ)
 Y = zeros(Float64, 0, λ)
@@ -148,7 +216,7 @@ fitnesses_max = Array{Float64, 1}()
 
 loss_args = [100.0, 92.0, 0.0, 64.0]
 
-while recycling_durability > 0 && bad_num > 0
+for recycle in 1:recycling_durability
     # best_argのグローバル化
     best_arg = 0
     # Z = vcat(X, Y)
@@ -183,33 +251,32 @@ while recycling_durability > 0 && bad_num > 0
         push!(fitnesses_max, minimum(fitnesses))
 
         # 更新
-        update!(cmaes, X, fitnesses, gen % (max_gen ÷ 2))
+        update!(cmaes, X, fitnesses, gen)
     end
-    gif(anim, "best_pieces_$(recycling_durability).gif", fps=10)
+    gif(anim, "best_pieces_$(recycle).gif", fps=10)
 
     # 正解っぽいピースと不正解っぽいピースに分ける
     Z = vcat(X, Y)
-    score = reviewer(pieces, Z[:,best_arg], silhouette)
+    score = reviewer_2(pieces, Z[:, best_arg], silhouette, recycle_threshold)
     println(score)
-    new_pieces = []
+    
+    new_pieces = Array{MYPolygon{Float64}, 1}()
     global Y = zeros(Float64, 0)
     global bad_num = 0
     for i in 1:length(pieces)
-        if score[i] < recycle_thread
+        if score[i]
+            push!(new_pieces, pieces[i])
+            push!(Y, Z[3i-2:3i, best_arg]...)
+        else
             pushfirst!(new_pieces, pieces[i])
             global bad_num += 1
-        else
-            push!(new_pieces, pieces[i])
-            push!(Y, Z[3i-2, best_arg], Z[3i-1, best_arg], Z[3i, best_arg])
         end
     end
+    if bad_num == 0 break end
+
+    global pieces = deepcopy(new_pieces)
     global Y = repeat(Y, 1, λ)
-
-
-    println(bad_num)
-    # piecesを並び替えてCMAESを不正解のだけ調整するように初期化する
-    global cmaes = init_CMAES(zeros(3 * bad_num), 1.0, 18)
-    global recycling_durability -= 1
+    global cmaes = init_CMAES(zeros(3 * bad_num), 1.0, λ)
 end
 
 # pl = plot(1:max_gen, -fitnesses_max, lab="Average", xaxis="generation", yaxis="fitness [%]", legend = false, w=2.5)
