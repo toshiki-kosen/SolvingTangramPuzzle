@@ -18,9 +18,18 @@ trapezoid2 = MYPolygon([-√2, √2, 0.5*√2, -0.5*√2], [0, 0, 0.5*√2, 0.5*
 
 # tri_s, parallelogram
 trapezoid2_2 = MYPolygon([0, 0.5*√2, 0, -√2], [0, 0.5*√2, √2, 0])
-
+ 
 # tri_s, square_s
 tri_above_square = MYPolygon([0, 1, 1, 0, 0, 1, 0, 0, 0], [0, 0, 1, 1, 2, 3, 3, 2, 1])
+
+# tri_s, square_s
+fish2 = MYPolygon([0, 0.5*√2, √2, 0.5*√2, 0, -0.5*√2, -0.5*√2], [0, -0.5*√2, 0, 0.5*√2, 0, 0.5*√2, -0.5*√2])
+
+# tri_m, tri_s
+small_stand = MYPolygon([0, 1, 1, √2, 0], [0, 0, 1, √2, √2])
+
+# tri_m, tri_s, tri_s
+triforce3 = MYPolygon([0, -1, -0.5*√2 - 1, 0.5*√2 - 1, -1, 1, 1 - 0.5*√2, 1 + 0.5*√2, 1], [1, 0, -0.5*√2, -0.5*√2, 0, 0, -0.5*√2, -0.5*√2, 0])
 
 # tri_s, tri_s, parallelogram
 # tri_s, tri_s, square_s
@@ -43,6 +52,9 @@ square_4 = MYPolygon([0, 2, 2, 0], [0, 0, 2, 2])
 
 # tri_l, tri_l, tri_m, tri_s, tri_s, square_s, parallelogram
 square_l = MYPolygon([0, 2*√2, 2*√2, 0], [0, 0, 2*√2, 2*√2])
+
+# tri_m, tri_s, tri_s
+butterfly_s = MYPolygon([0, -1, 1, 0, 1, -1], [0, -1, -1, 0, 1, 1])
 
 # tri_l, tri_l
 butterfly = MYPolygon([0, √2, 2*√2, 2*√2, √2, 0], [0, √2, 0, 2*√2, √2, 2*√2])
