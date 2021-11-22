@@ -98,6 +98,37 @@ function rotate(P::MYPolygon{T}, θ::T, n::Int) where T
     return newP
 end
 
+# 2次元ベクトルの外積
+function cross(p::Array{T, 1}, q::Array{T, 1}) where T
+    return p[1] * q[2] - q[1] * p[2]
+end
+
+# 線分ABと点Pの距離
+function distance_seg2point(A::Array{Float64, 1}, B::Array{Float64, 1}, P::Array{Float64, 1})
+    a = B[1] - A[1]
+    b = B[2] - A[2]
+    if a == 0 && b == 0
+        return norm(A - P)
+    else
+        Q = zeros(Float64, 2)
+        Q[1] = (a^2 * P[1] + b^2 * A[1] + a * b * (P[2] - A[2])) / (a^2 + b^2)
+        Q[2] = (a^2 * A[2] + b^2 * P[2] + a * b * (P[1] - A[1])) / (a^2 + b^2)
+        
+        t = 0
+        if a != 0
+            t = (B[1] - Q[1]) / a
+        else
+            t = (B[2] - Q[2]) / b
+        end
+
+        if 0 ≤ t ≤ 1
+            return norm(Q - P)
+        else
+            return min(norm(A - P), norm(B - P))
+        end
+    end
+end
+
 # 図形を倍率dだけ拡大する
 function expand!(P::MYPolygon{T}, d::T) where T
     for i in 1:P.n
@@ -215,7 +246,7 @@ function unionArea(P1::MYPolygon, P2::MYPolygon)
     return LibGEOS.area(gePu)
 end
 
-function symmetricDifference(P1::MYPolygon, P2::MYPolygon)
+function SymmetricDifference(P1::MYPolygon, P2::MYPolygon)
     geP1 = MYPolygon2LibGEOS(P1)
     geP2 = MYPolygon2LibGEOS(P2)
     geSD = LibGEOS.symmetricDifference(geP1, geP2)
