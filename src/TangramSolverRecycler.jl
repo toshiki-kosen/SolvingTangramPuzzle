@@ -194,18 +194,17 @@ function reviewer_2(pieces::Array{MYPolygon{Float64}, 1}, X, silhouette::MYPolyg
     return score
 end
 
-silhouette = small_stand
-pieces = [tri_l, tri_s, tri_s]
+silhouette = butterfly
+pieces = [tri_s, square_s, parallelogram]
 
 # 初期化
 λ = 18
 cmaes = init_CMAES(zeros(3 * length(pieces)), 1.0, λ)
 seed = MersenneTwister()
-max_gen = 96
+max_gen = 128
 
-recycling_durability = 4
+recycling_durability = 6
 recycle_threshold = 0.1
-bad_num = length(pieces)
 X = zeros(Float64, 3length(pieces), λ)
 Y = zeros(Float64, 0, λ)
 
@@ -262,14 +261,14 @@ for recycle in 1:recycling_durability
     
     new_pieces = Array{MYPolygon{Float64}, 1}()
     global Y = zeros(Float64, 0)
-    global bad_num = 0
+    bad_num = 0
     for i in 1:length(pieces)
         if score[i]
             push!(new_pieces, pieces[i])
             push!(Y, Z[3i-2:3i, best_arg]...)
         else
             pushfirst!(new_pieces, pieces[i])
-            global bad_num += 1
+            bad_num += 1
         end
     end
     if bad_num == 0 break end
