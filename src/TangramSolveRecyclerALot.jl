@@ -23,12 +23,8 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
         unioned = LibGEOS.union(unioned, MYPolygon2LibGEOS(tmp_p))
         sum_pieces += MYPolygon2LibGEOS(tmp_p) |> LibGEOS.area
     end
-    tmp = LibGEOS.intersection(unioned, MYPolygon2LibGEOS(silhouette))
-    A = LibGEOS.area(tmp) / LibGEOS.area(MYPolygon2LibGEOS(silhouette))
-
-    # 各2pieceの共通部分を求める
-    inter = 1.0 - LibGEOS.area(unioned) / sum_pieces
-    outer = 1.0 - LibGEOS.area(tmp)/sum_pieces
+    
+    A = SymmetricDifference(unioned, silhouette) / LibGEOS.area(MYPolygon2LibGEOS(silhouette))
 
     # 頂点の誤差成分 (シルエットベース 緩い)
     Δv = 0.0
@@ -80,7 +76,7 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
     E = 0.0
     for i in 1:length(pieces)
         P = move(pieces[i], X[3i-2], X[3i-1])
-        rotate!(P, X[3i])
+        rotate!(P, X[3i] * 2π)
 
         cosθ = 0.0
 
@@ -109,10 +105,10 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
                 cosθ = max(cosθ1, cosθ2, cosθ3, cosθ4)
             end
         end
-        E += cosθ / length(pieces)
+        E += √(1 - cosθ^2) / length(pieces)
     end
 
-    return -loss_args[1] * A + loss_args[2] * Δv + loss_args[3] * outer + loss_args[4] * (E - 1)
+    return loss_args[1] * A + loss_args[2] * Δv + loss_args[3] * E 
 end
 
 # 面積ベースのピース批評
@@ -196,10 +192,10 @@ function reviewer_2(pieces::Array{MYPolygon{Float64}, 1}, X, silhouette::MYPolyg
     return score
 end
 
-silhouette = hexagon_m
-pieces = [tri_m, tri_s, tri_s, parallelogram]
+silhouette = antena
+pieces = [tri_l, tri_s, tri_s, square_s]
 
-loss_args = [100.0, 92.0, 0.0, 64.0]
+loss_args = [100.0, 92.0, 64.0]
 
 # 初期化
 max_gen = 128

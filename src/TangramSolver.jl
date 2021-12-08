@@ -86,7 +86,7 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
     E = 0.0
     for i in 1:length(pieces)
         P = move(pieces[i], X[3i-2], X[3i-1])
-        rotate!(P, X[3i])
+        rotate!(P, X[3i] * 2π)
 
         cosθ = 0.0
 

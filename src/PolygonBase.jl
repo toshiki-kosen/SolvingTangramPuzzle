@@ -7,6 +7,7 @@ mutable struct MYPolygon{T}
 
     n::Int64
     center::Vector{T}
+    area::Float64
 end
  
 # 多角形の重心
@@ -35,7 +36,8 @@ function MYPolygon(X::Array, Y::Array, T=Float64)
     MP = MYPolygon{T}(
         hcat(X, Y)', 
         length(X),
-        calc_center(X, Y)
+        calc_center(X, Y),
+        LibGEOS.area(vertex2LibGEOS(X, Y))
     )
     return move(MP, -MP.center...)
 end
@@ -187,6 +189,21 @@ function display(Polygons::MYPolygon...; center=false, vertex=false)
     # plot!(pl, xlim=(xmin, xmax), ylim=(ymin, ymax))
     plot!(pl, xlim=(-3, 3), ylim=(-3, 3), aspect_ratio =  1.0, legend=false)
     return pl
+end
+
+function vertex2LibGEOS(X, Y)
+    str = "POLYGON(("
+    for i in 1:P.n
+        str *= string(X[i])
+        str *= " "
+        str *= string(Y[i])
+        str *= ","
+    end
+    str *= string(X[1])
+    str *= " "
+    str *= string(Y[1])
+    str *= "))"
+    return readgeom(str)
 end
 
 function MYPolygon2LibGEOS(P::MYPolygon)
