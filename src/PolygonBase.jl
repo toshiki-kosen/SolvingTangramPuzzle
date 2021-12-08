@@ -193,7 +193,7 @@ end
 
 function vertex2LibGEOS(X, Y)
     str = "POLYGON(("
-    for i in 1:P.n
+    for i in 1:length(X)
         str *= string(X[i])
         str *= " "
         str *= string(Y[i])
