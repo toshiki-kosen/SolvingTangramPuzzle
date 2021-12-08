@@ -80,7 +80,7 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
     E = 0.0
     for i in 1:length(pieces)
         P = move(pieces[i], X[3i-2], X[3i-1])
-        rotate!(P, X[3i])
+        rotate!(P, X[3i] * 2π)
 
         cosθ = 0.0
 
@@ -137,11 +137,11 @@ function loss_poly_light(X::Array)
     return -A * 100
 end
 
-silhouette = butterfly_s
-pieces = [tri_m, tri_s, tri_s]
+silhouette = hexagon_m
+pieces = [tri_m, tri_s, tri_s, parallelogram]
 
 # loss_args = [100.0, 0.0, 0.0, 0.0]
-loss_args = [100.0, 85.0, 0.0, 20.0]
+loss_args = [100.0, 88.0, 0.0, 80.0]
 
 # 初期化
 max_gen = 128
