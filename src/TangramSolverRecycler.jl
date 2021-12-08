@@ -107,7 +107,7 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
             end
         end
 
-        E += cosθ / length(pieces)
+        E += √(1 - cosθ^2) / length(pieces)
     end
 
     return -loss_args[1] * A + loss_args[2] * Δv + loss_args[3] * outer + loss_args[4] * E
