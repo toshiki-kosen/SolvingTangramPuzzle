@@ -191,7 +191,7 @@ function loss_poly2(X::Array, loss_args::Array{Float64, 1})
         V += 2 * P.area * v / length(pieces)
     end
 
-    return loss_args[1] * F + loss_args[2] * V + loss_args[3] * E 
+    return loss_args[1] * F + loss_args[2] * E + loss_args[3] * V 
 end
 
 # 面積ベースのピース批評
