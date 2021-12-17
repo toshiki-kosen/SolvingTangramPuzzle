@@ -111,6 +111,89 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
     return loss_args[1] * A + loss_args[2] * Δv + loss_args[3] * E 
 end
 
+function loss_poly2(X::Array, loss_args::Array{Float64, 1})
+    global pices, silhouette
+
+    # silhouetteとpieceの共通部分の面積を求める
+    tmp_p = move(pieces[1], X[1], X[2])
+    rotate!(tmp_p, X[3] * 2π)
+    unioned = MYPolygon2LibGEOS(tmp_p)
+    sum_pieces = LibGEOS.area(MYPolygon2LibGEOS(tmp_p))
+
+    for i in 2:length(pieces)
+        tmp_p = move(pieces[i], X[3i-2], X[3i-1])
+        rotate!(tmp_p, X[3i] * 2π)
+        unioned = LibGEOS.union(unioned, MYPolygon2LibGEOS(tmp_p))
+        sum_pieces += MYPolygon2LibGEOS(tmp_p) |> LibGEOS.area
+    end
+    F = LibGEOS.area(LibGEOS.intersection(unioned, silhouette)) / silhouette.area
+
+    # 辺の誤差成分
+    E = 0.0
+    for P in pieces
+        minimum_sinθ = 1
+        for i in 1:P.n
+            p1 = P.vertexes[:, i]
+            p2 = i < n ? P.vertexes[:, i+1] : P.vertexes[:, 1]
+
+            p21 = p2 - p1
+            norm_p21 = norm(p21)
+
+            # シルエットを見る
+            for j in 1:silhouette.n
+                s1 = silhouette.vertexes[:, j]
+                s2 = j < silhouette.n ? silhouette.vertexes[:, j+1] : silhouette.vertexes[:, 1]
+                sinθ = cross(p21, s2-s1)/(norm_p21*norm(s2-s1))
+                minimum_sinθ = min(sinθ, minimum_sinθ)
+            end
+            # 他のピースを見る
+            for Q in pieces
+                if P == Q
+                    continue
+                end
+                for j in 1:Q.n
+                    q1 = Q.vertexes[j, :]
+                    q2 = j < Q.n ? Q.vertexes[:, j+1] : Q.vertexes[:, 1]
+                    sinθ = cross(p21, q2-q1)/(norm_p21*norm(q2-q1))
+                    minimum_sinθ = min(sinθ, minimum_sinθ)
+                end
+            end
+        end
+        E += minimum_sinθ / length(pieces) * 2P.area
+    end
+
+    # 頂点の誤差成分
+    V = 0.0
+    for P in pieces
+        v = 0.0
+        for i in 1:P.n
+            p = P.vertexes[:, i]
+            
+            min_d = 100.0
+            # シルエットについて見る
+            for j in 1:silhouette.n
+                ps = norm(p - silhouette.vertexes[:, j])
+                min_d = min(min_d, ps)
+            end
+
+            # 他のピースについて見る
+            for Q in pieces
+                if Q == P
+                    continue
+                end
+                for j in 1:Q.n
+                    pq = norm(p - Q.vertexes.[:, j])
+                    min_d = min(min_d, pq)
+                end
+            end
+            v += min_d / P.n
+        end
+        V += 2 * P.area * v / length(pieces)
+    end
+
+    return loss_args[1] * F + loss_args[2] * V + loss_args[3] * E 
+end
+
 # 面積ベースのピース批評
 # シルエットから飛び出たやつしか扱えない
 function reviewer_1(pieces::Array{MYPolygon{Float64}, 1}, X, silhouette::MYPolygon, threshold)
