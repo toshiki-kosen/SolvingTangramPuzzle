@@ -110,7 +110,7 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
             end
         end
         E += cosθ / length(pieces)
-    end
+    end 
 
     return -loss_args[1] * A + loss_args[2] * Δv + loss_args[3] * outer + loss_args[4] * (E - 1)
 end
@@ -137,15 +137,15 @@ function loss_poly_light(X::Array)
     return -A * 100
 end
 
-silhouette = hexagon_m
-pieces = [tri_m, tri_s, tri_s, parallelogram]
+silhouette = hexagon_5
+pieces = [tri_m, tri_s, tri_s, square_s, parallelogram]
 
 # loss_args = [100.0, 0.0, 0.0, 0.0]
-loss_args = [100.0, 88.0, 0.0, 80.0]
+loss_args = [100.0, 280.0, 0.0, 40.0]
 
 # 初期化
-max_gen = 128
-sample_num = 256
+max_gen = 168
+sample_num = 128
 
 # 最終結果を保存するか否か
 save_results = true

@@ -122,13 +122,13 @@ function loss_poly(X::Array, loss_args::Array{Float64, 1})
     return -loss_args[1] * A + loss_args[2] * Δv + loss_args[3] * outer + loss_args[4] * E
 end
 
-silhouette = hexagon_m
-pieces = [tri_m, tri_s, tri_s, parallelogram]
+silhouette = hexagon_5
+pieces = [tri_m, tri_s, tri_s, square_s, parallelogram]
 
 # 初期化
 cmaes = init_CMAES(zeros(3 * length(pieces)), 1.0, 0)
 seed = MersenneTwister()
-max_gen = 96
+max_gen = 168
 
 println(seed)
 

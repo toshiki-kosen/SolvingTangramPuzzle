@@ -140,6 +140,11 @@ end
 function loss_poly2(X::Array, loss_args::Array{Float64, 1})
     global pices, silhouette
 
+    all_area = 0
+    for P in pieces
+        all_area += P.area
+    end
+
     # silhouetteとpieceの共通部分の面積を求める
     tmp_p = move(pieces[1], X[1], X[2])
     rotate!(tmp_p, X[3] * 2π)
@@ -152,15 +157,16 @@ function loss_poly2(X::Array, loss_args::Array{Float64, 1})
         unioned = LibGEOS.union(unioned, MYPolygon2LibGEOS(tmp_p))
         sum_pieces += MYPolygon2LibGEOS(tmp_p) |> LibGEOS.area
     end
-    F = LibGEOS.area(LibGEOS.intersection(unioned, silhouette)) / silhouette.area
+    F = LibGEOS.area(LibGEOS.intersection(unioned, MYPolygon2LibGEOS(silhouette))) / silhouette.area
 
     # 辺の誤差成分
     E = 0.0
     for P in pieces
-        minimum_sinθ = 1
+        sinθ_ave = 1
         for i in 1:P.n
+            minimum_e = 1
             p1 = P.vertexes[:, i]
-            p2 = i < n ? P.vertexes[:, i+1] : P.vertexes[:, 1]
+            p2 = i < P.n ? P.vertexes[:, i+1] : P.vertexes[:, 1]
 
             p21 = p2 - p1
             norm_p21 = norm(p21)
@@ -170,7 +176,7 @@ function loss_poly2(X::Array, loss_args::Array{Float64, 1})
                 s1 = silhouette.vertexes[:, j]
                 s2 = j < silhouette.n ? silhouette.vertexes[:, j+1] : silhouette.vertexes[:, 1]
                 sinθ = cross(p21, s2-s1)/(norm_p21*norm(s2-s1))
-                minimum_sinθ = min(sinθ, minimum_sinθ)
+                minimum_e = min(sinθ, minimum_e)
             end
             # 他のピースを見る
             for Q in pieces
@@ -178,14 +184,15 @@ function loss_poly2(X::Array, loss_args::Array{Float64, 1})
                     continue
                 end
                 for j in 1:Q.n
-                    q1 = Q.vertexes[j, :]
+                    q1 = Q.vertexes[:, j]
                     q2 = j < Q.n ? Q.vertexes[:, j+1] : Q.vertexes[:, 1]
                     sinθ = cross(p21, q2-q1)/(norm_p21*norm(q2-q1))
-                    minimum_sinθ = min(sinθ, minimum_sinθ)
+                    minimum_e = min(abs(sinθ), minimum_e)
                 end
             end
+           sinθ_ave += minimum_e / P.n
         end
-        E += minimum_sinθ / length(pieces) * 2P.area
+        E += P.area *sinθ_ave / (length(pieces) * all_area)
     end
 
     # 頂点の誤差成分
@@ -208,16 +215,16 @@ function loss_poly2(X::Array, loss_args::Array{Float64, 1})
                     continue
                 end
                 for j in 1:Q.n
-                    pq = norm(p - Q.vertexes.[:, j])
+                    pq = norm(p - Q.vertexes[:, j])
                     min_d = min(min_d, pq)
                 end
             end
             v += min_d / P.n
         end
-        V += 2 * P.area * v / length(pieces)
+        V += P.area * v / (length(pieces) * all_area)
     end
 
-    return loss_args[1] * F + loss_args[2] * E + loss_args[3] * V 
+    return -loss_args[1] * F + loss_args[2] * E + loss_args[3] * V 
 end
 
 silhouette = hexagon_m
@@ -228,13 +235,13 @@ max_gen = 128
 sample_num = 128
 
 # c2 0~200, c3 0~200
-for c2 in 0.0:20:200.0, c3 in 0.0:20:200.0
+for c2 in 40.0:20:100.0, c3 in 350.0:50:550.0
     loss_args = [100.0, c3, 0.0, c2]
 
     fpath = @sprintf "outputs\\outputs_c2-%03d_c3-%03d" Int(c2) Int(c3)
     rm(fpath, force=true, recursive=true)
     mkdir(fpath )
-
+ 
     best_fitnesses = Array{Float64, 1}() 
     p = Progress(sample_num, desc="c2:$(Int(c2)) c3:$(Int(c3)): ")
     for t in 1:sample_num
